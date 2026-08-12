@@ -42,5 +42,8 @@ class Repository(Base):
         DateTime(timezone=True),
         nullable=True
     )
-    
-    owner = relationship("User", back_populates="repositories")
+
+    # lazy="raise" prevents accidental lazy loads — all loading must be explicit
+    owner = relationship("User", back_populates="repositories", lazy="raise")
+    scans = relationship("Scan", back_populates="repository", cascade="all, delete-orphan", lazy="raise")
+    findings = relationship("Finding", back_populates="repository", cascade="all, delete-orphan", lazy="raise")

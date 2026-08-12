@@ -10,6 +10,8 @@ import RepositoriesPage from './pages/RepositoriesPage';
 import AddRepositoryPage from './pages/AddRepositoryPage';
 import RepositoryDetailsPage from './pages/RepositoryDetailsPage';
 import EditRepositoryPage from './pages/EditRepositoryPage';
+import FindingsPage from './pages/FindingsPage';
+import FindingDetailsPage from './pages/FindingDetailsPage';
 
 export const App: React.FC = () => {
   return (
@@ -28,6 +30,8 @@ export const App: React.FC = () => {
               <Route path="/repositories/new" element={<AddRepositoryPage />} />
               <Route path="/repositories/:id" element={<RepositoryDetailsPage />} />
               <Route path="/repositories/:id/edit" element={<EditRepositoryPage />} />
+              <Route path="/findings" element={<FindingsPage />} />
+              <Route path="/findings/:id" element={<FindingDetailsPage />} />
             </Route>
           </Route>
 

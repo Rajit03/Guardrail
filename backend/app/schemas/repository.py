@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
-from typing import Optional
-from pydantic import BaseModel, Field, field_validator, HttpUrl, ConfigDict
+from typing import Optional, List
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class RepositoryBase(BaseModel):
@@ -58,5 +58,8 @@ class RepositoryResponse(RepositoryBase):
     created_at: datetime
     updated_at: datetime
     last_scan_at: Optional[datetime] = None
+    # Computed fields populated by the service layer, not ORM relationships
+    findings_count: int = 0
+    last_scan_status: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

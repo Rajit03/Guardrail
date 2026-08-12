@@ -23,7 +23,7 @@ export const DashboardLayout: React.FC = () => {
   const navItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', active: true },
     { name: 'Repositories', icon: FolderGit2, path: '/repositories', active: true },
-    { name: 'Findings', icon: AlertTriangle, path: '#', active: false, badge: 'Coming soon' },
+    { name: 'Findings', icon: AlertTriangle, path: '/findings', active: true },
     { name: 'Copilot', icon: Bot, path: '#', active: false, badge: 'Coming soon' },
     { name: 'Settings', icon: Settings, path: '#', active: false, badge: 'Coming soon' },
   ];

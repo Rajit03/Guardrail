@@ -8,7 +8,7 @@ Guardrail is a cybersecurity platform designed for small and growing businesses 
 
 ## Current Phase
 
-**Phase 2 — Repository Management**
+**Phase 3 — Security Scanning**
 
 ## Completed
 
@@ -25,6 +25,13 @@ Guardrail is a cybersecurity platform designed for small and growing businesses 
 - Repository ownership
 - GitHub URL validation
 - Repository dashboard
+
+**Phase 3:**
+- Secret detection (Gitleaks)
+- Dependency vulnerability detection (OSV.dev)
+- Scan history
+- Finding management
+- Security findings dashboard
 
 ---
 

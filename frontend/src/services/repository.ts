@@ -31,6 +31,11 @@ export const repositoryService = {
   async deleteRepository(id: string): Promise<MessageResponse> {
     const response = await api.delete<MessageResponse>(`/repositories/${id}`);
     return response.data;
+  },
+
+  async getRepositoryScans(id: string): Promise<import('../types').Scan[]> {
+    const response = await api.get<import('../types').Scan[]>(`/repositories/${id}/scans`);
+    return response.data;
   }
 };
 

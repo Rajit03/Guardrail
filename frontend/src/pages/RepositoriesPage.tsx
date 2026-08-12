@@ -107,14 +107,35 @@ export const RepositoriesPage: React.FC = () => {
                   <div className="flex justify-between">
                     <span className="text-slate-500">Last scan</span>
                     <span className="text-slate-300">
-                      {repo.last_scan_at ? new Date(repo.last_scan_at).toLocaleDateString() : 'Never'}
+                      {repo.last_scan_at ? new Date(repo.last_scan_at).toLocaleString() : 'Never'}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-500">Status</span>
+                    <span className="text-slate-500">Findings</span>
+                    <span className="flex items-center space-x-1.5 font-semibold">
+                      {repo.findings_count > 0 ? (
+                        <Link to={`/findings?repository_id=${repo.id}&status=OPEN`} className="text-amber-500 hover:underline">
+                          {repo.findings_count} Open
+                        </Link>
+                      ) : (
+                        <span className="text-emerald-400">0 Open</span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Scan Status</span>
                     <span className="flex items-center space-x-1.5">
-                      <span className={`w-2 h-2 rounded-full ${repo.is_active ? 'bg-emerald-500' : 'bg-slate-500'}`}></span>
-                      <span className="text-slate-300">{repo.is_active ? 'Active' : 'Inactive'}</span>
+                      {repo.last_scan_status ? (
+                        <>
+                          <span className={`w-2 h-2 rounded-full ${
+                            repo.last_scan_status === 'COMPLETED' ? 'bg-emerald-500' :
+                            repo.last_scan_status === 'FAILED' ? 'bg-red-500' : 'bg-sky-500 animate-pulse'
+                          }`}></span>
+                          <span className="text-slate-300 capitalize text-xs">{repo.last_scan_status.toLowerCase()}</span>
+                        </>
+                      ) : (
+                        <span className="text-slate-500 italic text-xs">No scans yet</span>
+                      )}
                     </span>
                   </div>
                 </div>

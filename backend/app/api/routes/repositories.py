@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.schemas.repository import RepositoryCreate, RepositoryUpdate, RepositoryResponse
+from app.schemas.scan import ScanResponse
 from app.services.repository_service import RepositoryService
 from app.api.dependencies import get_current_user
 from app.models.user import User
@@ -22,8 +23,6 @@ def create_repository(
     service = RepositoryService(db)
     return service.create_repository(user_id=current_user.id, obj_in=repo_in)
 
-
-from typing import List
 
 @router.get("", response_model=dict[str, List[RepositoryResponse]])
 def get_repositories(
@@ -46,6 +45,20 @@ def get_repository(
     if not repo:
         raise HTTPException(status_code=404, detail="Repository not found")
     return repo
+
+
+@router.get("/{repository_id}/scans", response_model=List[ScanResponse])
+def get_repository_scans(
+    repository_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Return scan history for a repository (ownership enforced)."""
+    service = RepositoryService(db)
+    scans = service.get_repository_scans(user_id=current_user.id, repository_id=repository_id)
+    if scans is None:
+        raise HTTPException(status_code=404, detail="Repository not found")
+    return scans
 
 
 @router.patch("/{repository_id}", response_model=RepositoryResponse)

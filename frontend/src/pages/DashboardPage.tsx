@@ -3,28 +3,37 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Shield, FolderGit2, AlertTriangle, ShieldCheck, Inbox } from 'lucide-react';
 import { repositoryService } from '../services/repository';
+import { findingService } from '../services/scan';
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
   const [repoCount, setRepoCount] = useState<number>(0);
+  const [openCount, setOpenCount] = useState<number>(0);
+  const [criticalCount, setCriticalCount] = useState<number>(0);
 
   useEffect(() => {
-    const fetchRepoCount = async () => {
+    const fetchData = async () => {
       try {
         const repos = await repositoryService.getRepositories();
         setRepoCount(repos.length);
+
+        const openFindings = await findingService.getFindings({ status: 'OPEN' });
+        setOpenCount(openFindings.length);
+
+        const criticalFindings = await findingService.getFindings({ status: 'OPEN', severity: 'CRITICAL' });
+        setCriticalCount(criticalFindings.length);
       } catch (error) {
-        console.error('Failed to fetch repository count', error);
+        console.error('Failed to fetch dashboard metrics', error);
       }
     };
-    fetchRepoCount();
+    fetchData();
   }, []);
 
   const metrics = [
     {
       title: 'Security Score',
       value: '--',
-      subtitle: 'No scans yet',
+      subtitle: 'Risk scoring coming in Phase 4',
       icon: Shield,
       color: 'text-slate-400',
     },
@@ -38,17 +47,19 @@ export const DashboardPage: React.FC = () => {
     },
     {
       title: 'Open Findings',
-      value: '0',
+      value: openCount.toString(),
       subtitle: 'Active security alerts',
       icon: AlertTriangle,
-      color: 'text-slate-400',
+      color: openCount > 0 ? 'text-amber-500' : 'text-slate-400',
+      link: '/findings?status=OPEN',
     },
     {
       title: 'Critical Findings',
-      value: '0',
+      value: criticalCount.toString(),
       subtitle: 'Immediate action items',
       icon: ShieldCheck,
-      color: 'text-severity-critical',
+      color: criticalCount > 0 ? 'text-rose-500' : 'text-slate-400',
+      link: '/findings?status=OPEN&severity=CRITICAL',
     },
   ];
 

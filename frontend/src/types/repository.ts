@@ -10,6 +10,8 @@ export interface Repository {
   created_at: string;
   updated_at: string;
   last_scan_at?: string;
+  findings_count: number;
+  last_scan_status?: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 }
 
 export interface RepositoryCreate {
