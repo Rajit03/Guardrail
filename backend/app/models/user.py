@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime, timezone
+from typing import List
 from sqlalchemy import String, Boolean, DateTime
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.core.database import Base
 
@@ -29,4 +30,11 @@ class User(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False
+    )
+
+    repositories: Mapped[List["Repository"]] = relationship(
+        "Repository",
+        back_populates="owner",
+        cascade="all, delete-orphan",
+        passive_deletes=True
     )

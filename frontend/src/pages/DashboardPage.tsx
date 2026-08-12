@@ -1,9 +1,25 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Shield, FolderGit2, AlertTriangle, ShieldCheck, Inbox } from 'lucide-react';
+import repositoryService from '../services/repositories';
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const [repositoryCount, setRepositoryCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    const loadCount = async () => {
+      try {
+        const repos = await repositoryService.list();
+        setRepositoryCount(repos.length);
+      } catch {
+        setRepositoryCount(null);
+      }
+    };
+    loadCount();
+  }, []);
 
   const metrics = [
     {
@@ -15,10 +31,11 @@ export const DashboardPage: React.FC = () => {
     },
     {
       title: 'Repositories',
-      value: '0',
+      value: repositoryCount === null ? '--' : String(repositoryCount),
       subtitle: 'Connected repositories',
       icon: FolderGit2,
       color: 'text-slate-400',
+      onClick: () => navigate('/repositories'),
     },
     {
       title: 'Open Findings',
@@ -54,10 +71,23 @@ export const DashboardPage: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {metrics.map((metric) => {
           const Icon = metric.icon;
+          const clickable = !!metric.onClick;
           return (
             <div
               key={metric.title}
-              className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700/80 transition-all flex flex-col justify-between"
+              onClick={metric.onClick}
+              role={clickable ? 'button' : undefined}
+              tabIndex={clickable ? 0 : undefined}
+              onKeyDown={
+                clickable
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') metric.onClick?.();
+                    }
+                  : undefined
+              }
+              className={`bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700/80 transition-all flex flex-col justify-between ${
+                clickable ? 'cursor-pointer hover:border-sky-800/60' : ''
+              }`}
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
