@@ -22,7 +22,7 @@ export const DashboardLayout: React.FC = () => {
 
   const navItems = [
     { name: 'Dashboard', icon: LayoutDashboard, path: '/dashboard', active: true },
-    { name: 'Repositories', icon: FolderGit2, path: '#', active: false, badge: 'Coming soon' },
+    { name: 'Repositories', icon: FolderGit2, path: '/repositories', active: true },
     { name: 'Findings', icon: AlertTriangle, path: '#', active: false, badge: 'Coming soon' },
     { name: 'Copilot', icon: Bot, path: '#', active: false, badge: 'Coming soon' },
     { name: 'Settings', icon: Settings, path: '#', active: false, badge: 'Coming soon' },
@@ -48,12 +48,20 @@ export const DashboardLayout: React.FC = () => {
                   <NavLink
                     key={item.name}
                     to={item.path}
-                    className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-sky-950/60 text-sky-400 border border-sky-800/40 text-sm font-medium transition-colors"
+                    className={({ isActive }) =>
+                      `flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'bg-sky-950/60 text-sky-400 border-sky-800/40'
+                          : 'text-slate-400 border-transparent hover:bg-slate-800/50 hover:text-slate-200'
+                      }`
+                    }
                   >
-                    <div className="flex items-center space-x-3">
-                      <Icon className="w-4 h-4 text-sky-400" />
-                      <span>{item.name}</span>
-                    </div>
+                    {({ isActive }) => (
+                      <div className="flex items-center space-x-3">
+                        <Icon className={`w-4 h-4 ${isActive ? 'text-sky-400' : 'text-slate-400'}`} />
+                        <span>{item.name}</span>
+                      </div>
+                    )}
                   </NavLink>
                 );
               }

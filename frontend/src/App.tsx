@@ -6,6 +6,10 @@ import DashboardLayout from './layouts/DashboardLayout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
+import RepositoriesPage from './pages/RepositoriesPage';
+import AddRepositoryPage from './pages/AddRepositoryPage';
+import RepositoryDetailsPage from './pages/RepositoryDetailsPage';
+import EditRepositoryPage from './pages/EditRepositoryPage';
 
 export const App: React.FC = () => {
   return (
@@ -20,6 +24,10 @@ export const App: React.FC = () => {
           <Route element={<ProtectedRoute />}>
             <Route element={<DashboardLayout />}>
               <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/repositories" element={<RepositoriesPage />} />
+              <Route path="/repositories/new" element={<AddRepositoryPage />} />
+              <Route path="/repositories/:id" element={<RepositoryDetailsPage />} />
+              <Route path="/repositories/:id/edit" element={<EditRepositoryPage />} />
             </Route>
           </Route>
 

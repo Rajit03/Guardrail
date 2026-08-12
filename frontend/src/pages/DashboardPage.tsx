@@ -1,9 +1,24 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Shield, FolderGit2, AlertTriangle, ShieldCheck, Inbox } from 'lucide-react';
+import { repositoryService } from '../services/repository';
 
 export const DashboardPage: React.FC = () => {
   const { user } = useAuth();
+  const [repoCount, setRepoCount] = useState<number>(0);
+
+  useEffect(() => {
+    const fetchRepoCount = async () => {
+      try {
+        const repos = await repositoryService.getRepositories();
+        setRepoCount(repos.length);
+      } catch (error) {
+        console.error('Failed to fetch repository count', error);
+      }
+    };
+    fetchRepoCount();
+  }, []);
 
   const metrics = [
     {
@@ -15,10 +30,11 @@ export const DashboardPage: React.FC = () => {
     },
     {
       title: 'Repositories',
-      value: '0',
+      value: repoCount.toString(),
       subtitle: 'Connected repositories',
       icon: FolderGit2,
-      color: 'text-slate-400',
+      color: 'text-sky-400',
+      link: '/repositories',
     },
     {
       title: 'Open Findings',
@@ -50,14 +66,12 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Metrics Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {metrics.map((metric) => {
           const Icon = metric.icon;
-          return (
+          const CardContent = (
             <div
-              key={metric.title}
-              className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700/80 transition-all flex flex-col justify-between"
+              className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-sm hover:border-slate-700/80 transition-all flex flex-col justify-between h-full"
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -75,6 +89,16 @@ export const DashboardPage: React.FC = () => {
               </div>
             </div>
           );
+
+          if (metric.link) {
+            return (
+              <Link to={metric.link} key={metric.title} className="block cursor-pointer">
+                {CardContent}
+              </Link>
+            );
+          }
+
+          return <div key={metric.title}>{CardContent}</div>;
         })}
       </div>
 

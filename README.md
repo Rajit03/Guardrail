@@ -8,7 +8,23 @@ Guardrail is a cybersecurity platform designed for small and growing businesses 
 
 ## Current Phase
 
-**Phase 1 — Foundation**
+**Phase 2 — Repository Management**
+
+## Completed
+
+**Phase 1:**
+- Authentication
+- PostgreSQL
+- JWT
+- Docker
+- Protected dashboard
+
+**Phase 2:**
+- Repository management
+- Repository CRUD
+- Repository ownership
+- GitHub URL validation
+- Repository dashboard
 
 ---
 

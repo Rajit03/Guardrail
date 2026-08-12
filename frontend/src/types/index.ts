@@ -29,3 +29,5 @@ export interface MessageResponse {
 export interface ApiError {
   detail: string | { msg: string; loc: string[] }[];
 }
+
+export * from './repository';
