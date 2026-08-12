@@ -29,3 +29,35 @@ export interface MessageResponse {
 export interface ApiError {
   detail: string | { msg: string; loc: string[] }[];
 }
+
+export interface Repository {
+  id: string;
+  name: string;
+  url: string;
+  provider: string;
+  default_branch: string;
+  description: string | null;
+  is_active: boolean;
+  last_scan_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RepositoryCreatePayload {
+  name: string;
+  url: string;
+  provider: string;
+  default_branch: string;
+  description?: string;
+}
+
+export interface RepositoryUpdatePayload {
+  name?: string;
+  default_branch?: string;
+  description?: string | null;
+  is_active?: boolean;
+}
+
+export interface RepositoryListResponse {
+  repositories: Repository[];
+}
