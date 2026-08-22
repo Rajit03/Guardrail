@@ -4,7 +4,7 @@ API integration and authorization tests for Risk Engine endpoints.
 import pytest
 from unittest.mock import patch, MagicMock
 from contextlib import contextmanager
-from app.scanners.base import FindingData
+from app.scanners.base import FindingData, ScannerResult
 
 
 def register_and_login(client, email="risk_user@example.com", password="password123"):
@@ -45,14 +45,24 @@ MOCK_FINDINGS = [
     FindingData(
         type="DEPENDENCY",
         severity="HIGH",
-        title="Vulnerable dependency detected: lodash",
+        title="lodash vulnerability — GHSA-xxxx-yyyy-zzzz",
         scanner="osv",
         description="Prototype Pollution",
         file_path="package.json",
         rule_id="GHSA-xxxx-yyyy-zzzz",
-        recommendation="Upgrade lodash."
+        recommendation="Upgrade lodash.",
+        package_name="lodash",
+        installed_version="4.17.20",
+        fixed_version="4.17.21",
+        vulnerability_id="GHSA-xxxx-yyyy-zzzz",
+        aliases=["GHSA-xxxx-yyyy-zzzz"]
     )
 ]
+
+MOCK_RESULTS = {
+    "gitleaks": ScannerResult(scanner_name="gitleaks", executed=True, status="COMPLETED", raw_findings_count=1, normalized_findings_count=1, findings=[MOCK_FINDINGS[0]]),
+    "osv": ScannerResult(scanner_name="osv", executed=True, status="COMPLETED", raw_findings_count=1, normalized_findings_count=1, findings=[MOCK_FINDINGS[1]])
+}
 
 
 def scan_with_findings(client, token, repo_id):
@@ -61,7 +71,7 @@ def scan_with_findings(client, token, repo_id):
         yield "/tmp/fakerepo"
 
     with patch("app.services.scan_service.acquire_repository", side_effect=mock_acquire), \
-         patch("app.scanners.runner.ScannerRunner.run_all", return_value=MOCK_FINDINGS):
+         patch("app.scanners.runner.ScannerRunner.run_all", return_value=(MOCK_FINDINGS, MOCK_RESULTS)):
         r = client.post(f"/api/repositories/{repo_id}/scan", headers=auth_headers(token))
     return r.json()
 

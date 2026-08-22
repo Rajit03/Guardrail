@@ -6,7 +6,9 @@ export interface Scan {
   status: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
   started_at?: string;
   completed_at?: string;
+  error_message?: string;
   total_findings: number;
+  scan_summary?: Record<string, any>;
   created_at?: string;
 }
 
@@ -26,6 +28,13 @@ export interface Finding {
   recommendation?: string;
   status: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED' | 'FALSE_POSITIVE';
   created_at: string;
+
+  // Extended Vulnerability Fields
+  package_name?: string;
+  installed_version?: string;
+  fixed_version?: string;
+  vulnerability_id?: string;
+  aliases?: string[];
 
   // Risk Engine Fields
   risk_score?: number;

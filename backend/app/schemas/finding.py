@@ -22,6 +22,13 @@ class FindingResponse(BaseModel):
     status: str
     created_at: datetime
 
+    # Extended Vulnerability & Package Fields
+    package_name: Optional[str] = None
+    installed_version: Optional[str] = None
+    fixed_version: Optional[str] = None
+    vulnerability_id: Optional[str] = None
+    aliases: Optional[List[str]] = None
+
     # Risk Engine Computed/Relational Fields
     risk_score: Optional[int] = None
     risk_level: Optional[str] = None

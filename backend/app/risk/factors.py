@@ -11,11 +11,11 @@ class Exploitability(str, Enum):
 
 
 EXPLOITABILITY_WEIGHTS: Dict[Exploitability, float] = {
-    Exploitability.VERY_HIGH: 1.0,
-    Exploitability.HIGH: 0.8,
-    Exploitability.MEDIUM: 0.5,
-    Exploitability.LOW: 0.2,
-    Exploitability.UNKNOWN: 0.4,
+    Exploitability.VERY_HIGH: 1.15,
+    Exploitability.HIGH: 1.05,
+    Exploitability.MEDIUM: 1.00,
+    Exploitability.UNKNOWN: 1.00,  # Neutral context factor
+    Exploitability.LOW: 0.85,
 }
 
 
@@ -28,11 +28,11 @@ class Exposure(str, Enum):
 
 
 EXPOSURE_WEIGHTS: Dict[Exposure, float] = {
-    Exposure.INTERNET: 1.0,
-    Exposure.EXTERNAL: 0.8,
-    Exposure.INTERNAL: 0.5,
-    Exposure.LOCAL: 0.2,
-    Exposure.UNKNOWN: 0.4,
+    Exposure.INTERNET: 1.15,
+    Exposure.EXTERNAL: 1.05,
+    Exposure.INTERNAL: 1.00,
+    Exposure.UNKNOWN: 1.00,  # Neutral context factor
+    Exposure.LOCAL: 0.85,
 }
 
 
@@ -45,11 +45,11 @@ class AssetCriticality(str, Enum):
 
 
 ASSET_CRITICALITY_WEIGHTS: Dict[AssetCriticality, float] = {
-    AssetCriticality.CRITICAL: 1.0,
-    AssetCriticality.HIGH: 0.8,
-    AssetCriticality.MEDIUM: 0.5,
-    AssetCriticality.LOW: 0.2,
-    AssetCriticality.UNKNOWN: 0.4,
+    AssetCriticality.CRITICAL: 1.15,
+    AssetCriticality.HIGH: 1.05,
+    AssetCriticality.MEDIUM: 1.00,
+    AssetCriticality.UNKNOWN: 1.00,  # Neutral context factor
+    AssetCriticality.LOW: 0.85,
 }
 
 
@@ -61,10 +61,10 @@ class Confidence(str, Enum):
 
 
 CONFIDENCE_WEIGHTS: Dict[Confidence, float] = {
-    Confidence.HIGH: 1.0,
-    Confidence.MEDIUM: 0.75,
-    Confidence.LOW: 0.5,
-    Confidence.UNKNOWN: 0.7,
+    Confidence.HIGH: 1.15,
+    Confidence.MEDIUM: 1.00,
+    Confidence.UNKNOWN: 1.00,  # Neutral context factor
+    Confidence.LOW: 0.85,
 }
 
 

@@ -7,11 +7,16 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
-# Install system dependencies
+# Install system dependencies & Gitleaks binary
+ENV GITLEAKS_VERSION=8.18.2
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gcc \
     libpq-dev \
+    tar \
+    git \
+    && curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz -C /usr/local/bin gitleaks \
+    && chmod +x /usr/local/bin/gitleaks \
     && rm -rf /var/lib/apt/lists/*
 
 # Install python dependencies

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FolderGit2, FileText, Flame, CheckCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, FolderGit2, FileText, Flame, CheckCircle, RefreshCw, Package } from 'lucide-react';
 import { findingService, riskService } from '../services/scan';
 import { repositoryService } from '../services/repository';
 import { Finding, Repository, RiskAssessment } from '../types';
@@ -68,6 +68,9 @@ export const FindingDetailsPage: React.FC = () => {
 
   if (!finding) return null;
 
+  const isSecret = finding.type === 'SECRET';
+  const isDependency = finding.type === 'DEPENDENCY';
+
   const getPriorityBadgeClass = (p?: string) => {
     switch (p) {
       case 'P0': return 'bg-red-500/10 text-red-400 border-red-500/30';
@@ -109,9 +112,16 @@ export const FindingDetailsPage: React.FC = () => {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div>
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Finding & Risk Details
-            </span>
+            <div className="flex items-center space-x-2">
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                {isSecret ? 'Secret Finding Details' : 'Dependency Finding Details'}
+              </span>
+              {finding.vulnerability_id && (
+                <span className="bg-slate-800 text-sky-400 text-xs px-2 py-0.5 rounded font-mono font-semibold">
+                  {finding.vulnerability_id}
+                </span>
+              )}
+            </div>
             <h1 className="text-xl font-bold text-white tracking-tight truncate max-w-xl" title={finding.title}>
               {finding.title}
             </h1>
@@ -157,8 +167,8 @@ export const FindingDetailsPage: React.FC = () => {
 
             <div className="md:col-span-3 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
               <div>
-                <span className="text-slate-500 block mb-0.5 font-medium">Severity Factor</span>
-                <span className="font-mono text-slate-200 font-semibold">{riskAssessment.factors.severity} / 10</span>
+                <span className="text-slate-500 block mb-0.5 font-medium">Severity Baseline</span>
+                <span className="font-mono text-slate-200 font-semibold">{riskAssessment.factors.severity} / 100</span>
               </div>
               <div>
                 <span className="text-slate-500 block mb-0.5 font-medium">Exploitability</span>
@@ -207,6 +217,52 @@ export const FindingDetailsPage: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Main Details */}
         <div className="md:col-span-2 space-y-6">
+          {/* Dependency specific metadata */}
+          {isDependency && (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+              <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider flex items-center space-x-2">
+                <Package className="w-4 h-4 text-sky-400" />
+                <span>Dependency Information</span>
+              </h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Package</span>
+                  <span className="font-semibold text-white">{finding.package_name || '—'}</span>
+                </div>
+                <div>
+                  <span className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Installed Version</span>
+                  <span className="font-mono text-slate-300">{finding.installed_version || '—'}</span>
+                </div>
+                <div>
+                  <span className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Ecosystem</span>
+                  <span className="font-mono text-slate-300">PyPI / npm</span>
+                </div>
+                <div>
+                  <span className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Fixed Version</span>
+                  <span className="font-mono text-emerald-400 font-semibold">{finding.fixed_version || 'Patched release required'}</span>
+                </div>
+                {finding.vulnerability_id && (
+                  <div>
+                    <span className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Vulnerability ID</span>
+                    <span className="font-mono text-sky-400">{finding.vulnerability_id}</span>
+                  </div>
+                )}
+                {finding.aliases && finding.aliases.length > 0 && (
+                  <div>
+                    <span className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Aliases</span>
+                    <div className="flex flex-wrap gap-1">
+                      {finding.aliases.map((alias) => (
+                        <span key={alias} className="bg-slate-950 px-2 py-0.5 rounded text-xs font-mono text-slate-400 border border-slate-800">
+                          {alias}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Description & Evidence */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-6">
             <div>
@@ -222,9 +278,11 @@ export const FindingDetailsPage: React.FC = () => {
                 <pre className="bg-slate-950 border border-slate-800 rounded-lg p-4 font-mono text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap break-all">
                   {finding.evidence}
                 </pre>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Sensitive credential values are automatically masked by Guardrail to protect your secrets.
-                </p>
+                {isSecret && (
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Sensitive credential values are automatically masked by Guardrail to protect your secrets.
+                  </p>
+                )}
               </div>
             )}
           </div>

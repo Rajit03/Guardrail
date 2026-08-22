@@ -1,5 +1,6 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
+
 
 @dataclass
 class FindingData:
@@ -14,11 +15,30 @@ class FindingData:
     evidence: Optional[str] = None
     recommendation: Optional[str] = None
 
+    # Expanded Dependency & Vulnerability Fields
+    package_name: Optional[str] = None
+    installed_version: Optional[str] = None
+    fixed_version: Optional[str] = None
+    vulnerability_id: Optional[str] = None
+    aliases: Optional[List[str]] = field(default_factory=list)
+
+
+@dataclass
+class ScannerResult:
+    scanner_name: str
+    executed: bool
+    status: str  # "COMPLETED", "FAILED", "SKIPPED"
+    error_message: Optional[str] = None
+    raw_findings_count: int = 0
+    normalized_findings_count: int = 0
+    deduplicated_findings_count: int = 0
+    findings: List[FindingData] = field(default_factory=list)
+
 
 class BaseScanner:
-    def scan(self, repository_path: str) -> List[FindingData]:
+    def scan(self, repository_path: str) -> ScannerResult:
         """
-        Scan a local repository and return a list of findings.
-        This must be overridden by subclasses.
+        Scan a local repository and return a ScannerResult containing status and findings.
+        Must be overridden by subclasses.
         """
         raise NotImplementedError("Subclasses must implement the scan method.")

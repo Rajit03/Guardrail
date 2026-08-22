@@ -5,7 +5,7 @@ import subprocess
 import tempfile
 from typing import List
 
-from app.scanners.base import FindingData
+from app.scanners.base import FindingData, ScannerResult
 from app.scanners.secrets.scanner import BaseSecretScanner
 
 logger = logging.getLogger(__name__)
@@ -14,28 +14,40 @@ logger = logging.getLogger(__name__)
 class GitleaksScanner(BaseSecretScanner):
     """
     Scanner adapter for Gitleaks.
-    Performs static secret scanning without executing repository code.
+    Performs static secret scanning across all repository files recursively.
     """
 
-    def scan(self, repository_path: str) -> List[FindingData]:
+    def scan(self, repository_path: str) -> ScannerResult:
         findings: List[FindingData] = []
 
-        # Check if gitleaks is installed
+        # Check if gitleaks is installed in execution environment
         try:
-            subprocess.run(
+            version_check = subprocess.run(
                 ["gitleaks", "version"],
                 check=True,
                 capture_output=True,
+                text=True,
                 timeout=10
             )
-        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
-            logger.warning("Gitleaks is not installed or not available in PATH. Skipping secret scan.")
-            return findings
+            logger.info(f"Gitleaks version check output: {version_check.stdout.strip()}")
+        except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired) as e:
+            err_msg = "Gitleaks executable not found on system PATH. Secret scanning failed."
+            logger.error(err_msg)
+            return ScannerResult(
+                scanner_name="gitleaks",
+                executed=False,
+                status="FAILED",
+                error_message=err_msg,
+                raw_findings_count=0,
+                normalized_findings_count=0,
+                findings=[]
+            )
 
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp_file:
             report_path = tmp_file.name
 
         try:
+            # Command to scan all files recursively without git repository history
             cmd = [
                 "gitleaks",
                 "detect",
@@ -55,55 +67,104 @@ class GitleaksScanner(BaseSecretScanner):
                 timeout=120
             )
 
-            # Exit code 0 means no leaks; 1 means leaks found; any other exit code is an error
+            # Exit code 0 = no leaks found; exit code 1 = leaks detected; others = failure
             if result.returncode not in (0, 1):
-                logger.error(f"Gitleaks scan failed with exit code {result.returncode}: {result.stderr}")
-                return findings
+                err_msg = f"Gitleaks execution failed with exit code {result.returncode}: {result.stderr.strip()}"
+                logger.error(err_msg)
+                return ScannerResult(
+                    scanner_name="gitleaks",
+                    executed=True,
+                    status="FAILED",
+                    error_message=err_msg[:1024],
+                    raw_findings_count=0,
+                    normalized_findings_count=0,
+                    findings=[]
+                )
 
+            raw_findings_count = 0
             if os.path.exists(report_path) and os.path.getsize(report_path) > 0:
                 with open(report_path, "r", encoding="utf-8") as f:
                     raw_findings = json.load(f)
 
-                if not isinstance(raw_findings, list):
-                    logger.warning("Unexpected non-list Gitleaks report format.")
-                    return findings
+                if isinstance(raw_findings, list):
+                    raw_findings_count = len(raw_findings)
+                    for raw in raw_findings:
+                        if not isinstance(raw, dict):
+                            continue
 
-                for raw in raw_findings:
-                    if not isinstance(raw, dict):
-                        continue
-                    secret_val = raw.get("Secret", "")
-                    rule_id = raw.get("RuleID", "generic-secret")
+                        secret_val = raw.get("Secret", "")
+                        rule_id = raw.get("RuleID", "generic-secret")
 
-                    # Always mask secret value to prevent credential leaks
-                    if len(secret_val) > 4:
-                        masked_evidence = f"{secret_val[:4]}********"
-                    else:
-                        masked_evidence = "********"
+                        # Mask secret value completely to prevent credential exposure
+                        if len(secret_val) > 4:
+                            masked_evidence = f"{secret_val[:4]}********"
+                        else:
+                            masked_evidence = "********"
 
-                    finding = FindingData(
-                        type="SECRET",
-                        severity="HIGH",  # Deterministic mapping for secret detections
-                        title=f"Potential secret detected ({rule_id})",
-                        scanner="gitleaks",
-                        description=raw.get("Description", "A potential credential or hardcoded secret was found."),
-                        file_path=raw.get("File", ""),
-                        line_number=raw.get("StartLine", 0),
-                        rule_id=rule_id,
-                        evidence=f"Secret matches rule '{rule_id}': {masked_evidence}",
-                        recommendation="Revoke the credential immediately, rotate affected systems, and remove it from source control history."
-                    )
-                    findings.append(finding)
+                        rel_file_path = raw.get("File", "")
+                        # Normalize path separators for Windows/Linux consistency
+                        rel_file_path = rel_file_path.replace("\\", "/")
+                        if rel_file_path.startswith(repository_path.replace("\\", "/")):
+                            rel_file_path = os.path.relpath(rel_file_path, repository_path).replace("\\", "/")
+
+                        finding = FindingData(
+                            type="SECRET",
+                            severity="HIGH",  # Base severity for static credential findings
+                            title=f"Potential secret detected ({rule_id})",
+                            scanner="gitleaks",
+                            description=raw.get("Description", "A hardcoded secret or sensitive credential was detected."),
+                            file_path=rel_file_path,
+                            line_number=raw.get("StartLine", 0),
+                            rule_id=rule_id,
+                            evidence=f"Matches secret rule '{rule_id}': {masked_evidence}",
+                            recommendation="Rotate and revoke the credential immediately, and remove it from source control."
+                        )
+                        findings.append(finding)
+
+            return ScannerResult(
+                scanner_name="gitleaks",
+                executed=True,
+                status="COMPLETED",
+                error_message=None,
+                raw_findings_count=raw_findings_count,
+                normalized_findings_count=len(findings),
+                deduplicated_findings_count=len(findings),
+                findings=findings
+            )
+
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Gitleaks report JSON: {e}")
+            err_msg = f"Failed to parse Gitleaks report JSON output: {e}"
+            logger.error(err_msg)
+            return ScannerResult(
+                scanner_name="gitleaks",
+                executed=True,
+                status="FAILED",
+                error_message=err_msg,
+                findings=[]
+            )
         except subprocess.TimeoutExpired:
-            logger.error("Gitleaks scan timed out after 120 seconds.")
+            err_msg = "Gitleaks scan timed out after 120 seconds."
+            logger.error(err_msg)
+            return ScannerResult(
+                scanner_name="gitleaks",
+                executed=True,
+                status="FAILED",
+                error_message=err_msg,
+                findings=[]
+            )
         except Exception as e:
-            logger.error(f"Error during Gitleaks scan: {e}")
+            err_msg = f"Unexpected error during Gitleaks scan: {e}"
+            logger.error(err_msg)
+            return ScannerResult(
+                scanner_name="gitleaks",
+                executed=True,
+                status="FAILED",
+                error_message=err_msg[:1024],
+                findings=[]
+            )
         finally:
             if os.path.exists(report_path):
                 try:
                     os.remove(report_path)
                 except OSError:
                     pass
-
-        return findings

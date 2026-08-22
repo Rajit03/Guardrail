@@ -30,24 +30,31 @@ def generate_explanation(
         )
     elif finding_type == "DEPENDENCY":
         parts.append(
-            f"A vulnerable package dependency ({title}) was detected{location_str} with {sev} severity."
+            f"A confirmed package dependency vulnerability ({title}) was identified{location_str} with {sev} severity."
         )
         parts.append(
-            "Known vulnerabilities in third-party libraries could allow attackers to exploit software flaws or compromise application stability."
+            "Known vulnerabilities in third-party libraries create a security risk that could allow attackers to exploit software flaws."
         )
     else:
         parts.append(
-            f"A security issue ({title}) was detected{location_str} with {sev} severity."
+            f"A security finding ({title}) was identified{location_str} with {sev} severity."
+        )
+
+    # UNKNOWN context handling
+    if exposure.upper() == "UNKNOWN" or asset_criticality.upper() == "UNKNOWN":
+        parts.append(
+            "Asset exposure or criticality context is currently unconfigured (UNKNOWN), so a neutral baseline context factor was applied. "
+            "Risk remains elevated due to confirmed scanner findings."
         )
 
     # Contextual impact sentence
     if risk_level in ("CRITICAL", "HIGH"):
         parts.append(
-            f"Given the {risk_level.lower()} risk level and {priority} priority, this issue presents a significant potential security impact and should be prioritized for review."
+            f"Given the {risk_level.lower()} risk level and {priority} priority, this finding presents significant potential security impact and should be prioritized for remediation."
         )
     else:
         parts.append(
-            f"This issue is classified as {risk_level.lower()} risk ({priority} priority) and should be addressed during routine maintenance."
+            f"This finding is classified as {risk_level.lower()} risk ({priority} priority) and should be addressed during routine maintenance."
         )
 
     return " ".join(parts)

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   FolderGit2, ArrowLeft, ExternalLink, Github, Settings, Trash2,
-  ShieldAlert, Play, Clock, CheckCircle, XCircle, Loader2, AlertCircle, RefreshCw, Flame
+  ShieldAlert, Play, Clock, CheckCircle, XCircle, Loader2, AlertCircle, RefreshCw, Flame, MinusCircle
 } from 'lucide-react';
 import { repositoryService } from '../services/repository';
 import { scanService, findingService, riskService } from '../services/scan';
@@ -133,6 +133,37 @@ export const RepositoryDetailsPage: React.FC = () => {
     }
   };
 
+  const renderScannerStatusBadge = (status?: string) => {
+    switch (status) {
+      case 'COMPLETED':
+        return (
+          <span className="inline-flex items-center space-x-1 text-emerald-400 text-xs font-semibold">
+            <CheckCircle className="w-3.5 h-3.5" />
+            <span>Completed</span>
+          </span>
+        );
+      case 'FAILED':
+        return (
+          <span className="inline-flex items-center space-x-1 text-red-400 text-xs font-semibold">
+            <XCircle className="w-3.5 h-3.5" />
+            <span>Failed</span>
+          </span>
+        );
+      case 'SKIPPED':
+        return (
+          <span className="inline-flex items-center space-x-1 text-slate-400 text-xs font-semibold">
+            <MinusCircle className="w-3.5 h-3.5 text-slate-500" />
+            <span>Skipped</span>
+          </span>
+        );
+      default:
+        return <span className="text-slate-500 text-xs">Not Run</span>;
+    }
+  };
+
+  const latestScan = scans.length > 0 ? scans[0] : null;
+  const summary = latestScan?.scan_summary;
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
@@ -237,7 +268,52 @@ export const RepositoryDetailsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Scan section */}
+          {/* Scanner Status Breakdown (If latest scan exists) */}
+          {summary && (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
+              <h2 className="text-lg font-medium text-white flex items-center justify-between">
+                <span>Scanner Diagnostic Summary</span>
+                <span className="text-xs text-slate-400 font-mono font-normal">{summary.files_scanned} files inspected</span>
+              </h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Secret Scanner Card */}
+                <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-white text-sm">Secret Scanner (Gitleaks)</span>
+                    {renderScannerStatusBadge(summary.secret_scanner_status)}
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    <div>Raw Detections: <strong className="text-slate-200">{summary.scanners?.gitleaks?.raw_findings ?? 0}</strong></div>
+                    {summary.scanners?.gitleaks?.error_message && (
+                      <div className="text-red-400 mt-1 text-[11px] leading-tight">
+                        Error: {summary.scanners.gitleaks.error_message}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Dependency Scanner Card */}
+                <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-white text-sm">Dependency Scanner (OSV)</span>
+                    {renderScannerStatusBadge(summary.dependency_scanner_status)}
+                  </div>
+                  <div className="text-xs text-slate-400">
+                    <div>Raw Advisories: <strong className="text-slate-200">{summary.scanners?.osv?.raw_vulnerabilities ?? 0}</strong></div>
+                    <div>Deduplicated: <strong className="text-slate-200">{summary.scanners?.osv?.deduplicated_findings ?? 0}</strong></div>
+                    {summary.scanners?.osv?.error_message && (
+                      <div className="text-amber-400/90 mt-1 text-[11px] leading-tight">
+                        Note: {summary.scanners.osv.error_message}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Scan trigger section */}
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-medium text-white flex items-center space-x-2">
@@ -273,10 +349,11 @@ export const RepositoryDetailsPage: React.FC = () => {
 
             {scanning && (
               <div className="mt-4 space-y-1.5 text-sm text-slate-400">
-                <p className="flex items-center space-x-2"><Loader2 className="w-3 h-3 animate-spin text-sky-400" /><span>Preparing repository...</span></p>
-                <p className="flex items-center space-x-2"><Loader2 className="w-3 h-3 animate-spin text-sky-400" /><span>Running secret scanner...</span></p>
-                <p className="flex items-center space-x-2"><Loader2 className="w-3 h-3 animate-spin text-sky-400" /><span>Running dependency scanner...</span></p>
-                <p className="flex items-center space-x-2"><Loader2 className="w-3 h-3 animate-spin text-sky-400" /><span>Calculating risk scores...</span></p>
+                <p className="flex items-center space-x-2"><Loader2 className="w-3 h-3 animate-spin text-sky-400" /><span>Downloading repository archive...</span></p>
+                <p className="flex items-center space-x-2"><Loader2 className="w-3 h-3 animate-spin text-sky-400" /><span>Discovering source files and dependency manifests...</span></p>
+                <p className="flex items-center space-x-2"><Loader2 className="w-3 h-3 animate-spin text-sky-400" /><span>Running Gitleaks secret scanner...</span></p>
+                <p className="flex items-center space-x-2"><Loader2 className="w-3 h-3 animate-spin text-sky-400" /><span>Running OSV batch vulnerability scanner...</span></p>
+                <p className="flex items-center space-x-2"><Loader2 className="w-3 h-3 animate-spin text-sky-400" /><span>Deduplicating findings and generating risk assessments...</span></p>
               </div>
             )}
           </div>

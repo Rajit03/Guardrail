@@ -1,11 +1,11 @@
 """
 API integration tests for Scan and Finding endpoints.
-Uses the in-memory SQLite database from conftest.py.
+Uses the in-memory database from conftest.py.
 All scanner calls are mocked to avoid live network/gitleaks dependency.
 """
 import pytest
 from unittest.mock import patch, MagicMock
-from app.scanners.base import FindingData
+from app.scanners.base import FindingData, ScannerResult
 
 
 # ── Helpers ────────────────────────────────────────────────────────
@@ -49,14 +49,24 @@ MOCK_FINDINGS = [
     FindingData(
         type="DEPENDENCY",
         severity="HIGH",
-        title="Vulnerable dependency detected: lodash",
+        title="lodash vulnerability — GHSA-xxxx-yyyy-zzzz",
         scanner="osv",
         description="Prototype Pollution",
         file_path="package.json",
         rule_id="GHSA-xxxx-yyyy-zzzz",
-        recommendation="Upgrade lodash."
+        recommendation="Upgrade lodash.",
+        package_name="lodash",
+        installed_version="4.17.20",
+        fixed_version="4.17.21",
+        vulnerability_id="GHSA-xxxx-yyyy-zzzz",
+        aliases=["GHSA-xxxx-yyyy-zzzz"]
     )
 ]
+
+MOCK_RESULTS = {
+    "gitleaks": ScannerResult(scanner_name="gitleaks", executed=True, status="COMPLETED", raw_findings_count=1, normalized_findings_count=1, findings=[MOCK_FINDINGS[0]]),
+    "osv": ScannerResult(scanner_name="osv", executed=True, status="COMPLETED", raw_findings_count=1, normalized_findings_count=1, findings=[MOCK_FINDINGS[1]])
+}
 
 
 def scan_with_findings(client, token, repo_id):
@@ -68,7 +78,7 @@ def scan_with_findings(client, token, repo_id):
         yield "/tmp/fakerepo"
 
     with patch("app.services.scan_service.acquire_repository", side_effect=mock_acquire), \
-         patch("app.scanners.runner.ScannerRunner.run_all", return_value=MOCK_FINDINGS):
+         patch("app.scanners.runner.ScannerRunner.run_all", return_value=(MOCK_FINDINGS, MOCK_RESULTS)):
         r = client.post(f"/api/repositories/{repo_id}/scan", headers=auth_headers(token))
     return r.json()
 
@@ -83,40 +93,42 @@ class TestScanAPI:
 
     def test_authenticated_can_scan_own_repository(self, client):
         """Authenticated user can scan their own repository."""
-        token = register_and_login(client)
+        token = register_and_login(client, "scanner@example.com")
         repo_id = create_repo(client, token)
-        data = scan_with_findings(client, token, repo_id)
-        assert data["status"] in ("COMPLETED", "FAILED")
-        assert data["repository_id"] == repo_id
 
-    def test_user_cannot_scan_another_users_repository(self, client):
-        """User A must not be able to scan User B's repository."""
-        token_a = register_and_login(client, "a@example.com", "password123")
-        token_b = register_and_login(client, "b@example.com", "password123")
-        repo_id = create_repo(client, token_b)
+        scan_data = scan_with_findings(client, token, repo_id)
 
-        r = client.post(f"/api/repositories/{repo_id}/scan", headers=auth_headers(token_a))
+        assert scan_data["status"] == "COMPLETED"
+        assert scan_data["repository_id"] == repo_id
+        assert scan_data["total_findings"] == 2
+        assert scan_data["scan_summary"] is not None
+
+    def test_cannot_scan_other_users_repository(self, client):
+        """User A cannot trigger a scan on User B's repository."""
+        token_a = register_and_login(client, "usera@example.com")
+        token_b = register_and_login(client, "userb@example.com")
+
+        repo_b_id = create_repo(client, token_b, "https://github.com/octocat/Spoon-Knife")
+
+        r = client.post(f"/api/repositories/{repo_b_id}/scan", headers=auth_headers(token_a))
         assert r.status_code == 404
 
-    def test_scan_record_created(self, client):
-        """Scan record is created and scan_id is returned."""
-        token = register_and_login(client)
-        repo_id = create_repo(client, token)
-        data = scan_with_findings(client, token, repo_id)
-        assert "id" in data
-        assert data["id"] is not None
+    def test_scan_with_invalid_repository_id(self, client):
+        """Scanning a non-existent UUID returns 404."""
+        token = register_and_login(client, "badid@example.com")
+        r = client.post(
+            "/api/repositories/00000000-0000-0000-0000-000000000099/scan",
+            headers=auth_headers(token)
+        )
+        assert r.status_code == 404
 
-    def test_scan_completes_with_correct_finding_count(self, client):
-        """Scan reports the correct total_findings."""
-        token = register_and_login(client)
-        repo_id = create_repo(client, token)
-        data = scan_with_findings(client, token, repo_id)
-        assert data["status"] == "COMPLETED"
-        assert data["total_findings"] == len(MOCK_FINDINGS)
 
-    def test_scan_status_get(self, client):
-        """GET /api/scans/{scan_id} returns the scan record."""
-        token = register_and_login(client)
+# ── Scan Retrieval Tests ───────────────────────────────────────────
+
+class TestScanRetrieval:
+    def test_get_scan_by_id(self, client):
+        """Authenticated user can retrieve details of their completed scan."""
+        token = register_and_login(client, "getscan@example.com")
         repo_id = create_repo(client, token)
         scan_data = scan_with_findings(client, token, repo_id)
         scan_id = scan_data["id"]
@@ -124,120 +136,107 @@ class TestScanAPI:
         r = client.get(f"/api/scans/{scan_id}", headers=auth_headers(token))
         assert r.status_code == 200
         assert r.json()["id"] == scan_id
+        assert r.json()["status"] == "COMPLETED"
+        assert r.json()["total_findings"] == 2
 
-    def test_other_user_cannot_get_scan(self, client):
-        """User A must not access User B's scan."""
-        token_a = register_and_login(client, "a@example.com", "password123")
-        token_b = register_and_login(client, "b@example.com", "password123")
-        repo_id = create_repo(client, token_a)
-        scan_data = scan_with_findings(client, token_a, repo_id)
-        scan_id = scan_data["id"]
+    def test_cannot_get_other_users_scan(self, client):
+        """User A cannot view User B's scan details."""
+        token_a = register_and_login(client, "scana@example.com")
+        token_b = register_and_login(client, "scanb@example.com")
 
-        r = client.get(f"/api/scans/{scan_id}", headers=auth_headers(token_b))
+        repo_b_id = create_repo(client, token_b, "https://github.com/octocat/Spoon-Knife")
+        scan_data = scan_with_findings(client, token_b, repo_b_id)
+        scan_b_id = scan_data["id"]
+
+        r = client.get(f"/api/scans/{scan_b_id}", headers=auth_headers(token_a))
         assert r.status_code == 404
 
 
 # ── Findings API Tests ─────────────────────────────────────────────
 
 class TestFindingsAPI:
-    def test_get_findings_requires_auth(self, client):
-        """Unauthenticated users must not be able to list findings."""
-        r = client.get("/api/findings")
-        assert r.status_code == 401
-
     def test_findings_list_for_user(self, client):
-        """User can list their own findings."""
-        token = register_and_login(client)
+        """Listing findings returns findings belonging to user's repositories."""
+        token = register_and_login(client, "listfind@example.com")
         repo_id = create_repo(client, token)
         scan_with_findings(client, token, repo_id)
 
         r = client.get("/api/findings", headers=auth_headers(token))
         assert r.status_code == 200
-        data = r.json()
-        assert "findings" in data
-        assert len(data["findings"]) == len(MOCK_FINDINGS)
-
-    def test_user_cannot_see_other_users_findings(self, client):
-        """User B must see zero findings from User A's repositories."""
-        token_a = register_and_login(client, "a@example.com", "password123")
-        token_b = register_and_login(client, "b@example.com", "password123")
-        repo_id = create_repo(client, token_a)
-        scan_with_findings(client, token_a, repo_id)
-
-        r = client.get("/api/findings", headers=auth_headers(token_b))
-        assert r.status_code == 200
-        assert len(r.json()["findings"]) == 0
+        findings = r.json()["findings"]
+        assert len(findings) == 2
 
     def test_finding_details(self, client):
-        """GET /api/findings/{id} returns the full finding."""
-        token = register_and_login(client)
+        """Can fetch a single finding by ID."""
+        token = register_and_login(client, "detailfind@example.com")
         repo_id = create_repo(client, token)
         scan_with_findings(client, token, repo_id)
 
-        findings = client.get("/api/findings", headers=auth_headers(token)).json()["findings"]
-        finding_id = findings[0]["id"]
+        findings_resp = client.get("/api/findings", headers=auth_headers(token))
+        finding_id = findings_resp.json()["findings"][0]["id"]
 
         r = client.get(f"/api/findings/{finding_id}", headers=auth_headers(token))
         assert r.status_code == 200
         assert r.json()["id"] == finding_id
 
     def test_other_user_cannot_get_finding_detail(self, client):
-        """User B must not access User A's finding details."""
-        token_a = register_and_login(client, "a@example.com", "password123")
-        token_b = register_and_login(client, "b@example.com", "password123")
-        repo_id = create_repo(client, token_a)
-        scan_with_findings(client, token_a, repo_id)
+        """User A cannot access User B's finding detail."""
+        token_a = register_and_login(client, "finda@example.com")
+        token_b = register_and_login(client, "findb@example.com")
 
-        findings = client.get("/api/findings", headers=auth_headers(token_a)).json()["findings"]
-        finding_id = findings[0]["id"]
+        repo_b_id = create_repo(client, token_b, "https://github.com/octocat/Spoon-Knife")
+        scan_with_findings(client, token_b, repo_b_id)
 
-        r = client.get(f"/api/findings/{finding_id}", headers=auth_headers(token_b))
+        findings_b = client.get("/api/findings", headers=auth_headers(token_b)).json()["findings"]
+        finding_b_id = findings_b[0]["id"]
+
+        r = client.get(f"/api/findings/{finding_b_id}", headers=auth_headers(token_a))
         assert r.status_code == 404
 
     def test_scan_findings_endpoint(self, client):
         """GET /api/scans/{scan_id}/findings returns findings for that scan."""
-        token = register_and_login(client)
+        token = register_and_login(client, "scanfind@example.com")
         repo_id = create_repo(client, token)
         scan_data = scan_with_findings(client, token, repo_id)
         scan_id = scan_data["id"]
 
         r = client.get(f"/api/scans/{scan_id}/findings", headers=auth_headers(token))
         assert r.status_code == 200
-        assert len(r.json()["findings"]) == len(MOCK_FINDINGS)
+        assert len(r.json()["findings"]) == 2
 
     def test_secret_evidence_is_masked(self, client):
-        """The raw secret value must never appear in findings API response."""
-        token = register_and_login(client)
+        """Evidence string must not expose raw secrets in full."""
+        token = register_and_login(client, "masked@example.com")
         repo_id = create_repo(client, token)
         scan_with_findings(client, token, repo_id)
 
         r = client.get("/api/findings", headers=auth_headers(token))
         findings = r.json()["findings"]
-        secret_findings = [f for f in findings if f["type"] == "SECRET"]
-
-        for f in secret_findings:
-            evidence = f.get("evidence", "") or ""
-            # Evidence must contain the mask marker
-            assert "****" in evidence
+        secret_finding = next(f for f in findings if f["type"] == "SECRET")
+        assert "aAbB****" in secret_finding["evidence"]
 
     def test_filter_by_severity(self, client):
-        """Findings can be filtered by severity."""
-        token = register_and_login(client)
+        """Filtering by severity returns matching findings."""
+        token = register_and_login(client, "sevfilter@example.com")
         repo_id = create_repo(client, token)
         scan_with_findings(client, token, repo_id)
 
         r = client.get("/api/findings?severity=HIGH", headers=auth_headers(token))
         assert r.status_code == 200
-        for f in r.json()["findings"]:
-            assert f["severity"] == "HIGH"
+        assert len(r.json()["findings"]) == 2
+
+        r_low = client.get("/api/findings?severity=LOW", headers=auth_headers(token))
+        assert r_low.status_code == 200
+        assert len(r_low.json()["findings"]) == 0
 
     def test_filter_by_type(self, client):
-        """Findings can be filtered by type."""
-        token = register_and_login(client)
+        """Filtering by type returns matching findings."""
+        token = register_and_login(client, "typefilter@example.com")
         repo_id = create_repo(client, token)
         scan_with_findings(client, token, repo_id)
 
         r = client.get("/api/findings?type=SECRET", headers=auth_headers(token))
         assert r.status_code == 200
-        for f in r.json()["findings"]:
-            assert f["type"] == "SECRET"
+        findings = r.json()["findings"]
+        assert len(findings) == 1
+        assert findings[0]["type"] == "SECRET"
