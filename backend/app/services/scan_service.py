@@ -10,6 +10,7 @@ from app.models.scan import Scan
 from app.models.finding import Finding
 from app.models.repository import Repository
 from app.services.repository_acquisition import acquire_repository
+from app.services.risk_service import RiskService
 from app.scanners.runner import ScannerRunner
 
 logger = logging.getLogger(__name__)
@@ -59,7 +60,8 @@ class ScanService:
                 # 3. Run all scanners
                 finding_data_list = runner.run_all(repo_path)
 
-                # 4. Normalize and store each finding
+                # 4. Normalize and store each finding & calculate risk assessment
+                created_findings = []
                 for f_data in finding_data_list:
                     fingerprint_str = (
                         f"{repository.id}-{f_data.scanner}-{f_data.rule_id}"
@@ -84,6 +86,14 @@ class ScanService:
                         fingerprint=fingerprint
                     )
                     db.add(finding)
+                    created_findings.append(finding)
+
+                db.commit()
+
+                # Automatically calculate risk assessments for new findings
+                for f in created_findings:
+                    db.refresh(f)
+                    RiskService.compute_and_save_risk_assessment(db, f, repository)
 
                 scan.total_findings = len(finding_data_list)
                 scan.status = "COMPLETED"

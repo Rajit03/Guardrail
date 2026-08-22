@@ -12,6 +12,9 @@ export interface Repository {
   last_scan_at?: string;
   findings_count: number;
   last_scan_status?: 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED';
+  asset_type?: string;
+  asset_criticality?: string;
+  exposure?: string;
 }
 
 export interface RepositoryCreate {

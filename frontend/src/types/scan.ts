@@ -1,3 +1,5 @@
+import { RiskAssessment } from './risk';
+
 export interface Scan {
   id: string;
   repository_id: string;
@@ -24,6 +26,12 @@ export interface Finding {
   recommendation?: string;
   status: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED' | 'FALSE_POSITIVE';
   created_at: string;
+
+  // Risk Engine Fields
+  risk_score?: number;
+  risk_level?: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
+  priority?: 'P0' | 'P1' | 'P2' | 'P3';
+  risk_assessment?: RiskAssessment;
 }
 
 export interface FindingListResponse {
@@ -35,4 +43,7 @@ export interface FindingFilters {
   severity?: string;
   type?: string;
   status?: string;
+  risk_level?: string;
+  priority?: string;
+  sort_by?: string;
 }

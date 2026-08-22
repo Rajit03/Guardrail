@@ -42,6 +42,9 @@ class Repository(Base):
         DateTime(timezone=True),
         nullable=True
     )
+    asset_type: Mapped[str] = mapped_column(String(50), default="SOURCE_CODE", nullable=False)
+    asset_criticality: Mapped[str] = mapped_column(String(50), default="UNKNOWN", nullable=False)
+    exposure: Mapped[str] = mapped_column(String(50), default="UNKNOWN", nullable=False)
 
     # lazy="raise" prevents accidental lazy loads — all loading must be explicit
     owner = relationship("User", back_populates="repositories", lazy="raise")

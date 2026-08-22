@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ShieldAlert, Filter, RefreshCw, FolderGit2 } from 'lucide-react';
+import { ShieldAlert, Filter, RefreshCw, FolderGit2, ArrowUpDown } from 'lucide-react';
 import { findingService, scanService } from '../services/scan';
 import { repositoryService } from '../services/repository';
 import { Finding, Repository, FindingFilters } from '../types';
@@ -16,6 +16,9 @@ export const FindingsPage: React.FC = () => {
   const severity = searchParams.get('severity') || '';
   const type = searchParams.get('type') || '';
   const status = searchParams.get('status') || '';
+  const riskLevel = searchParams.get('risk_level') || '';
+  const priority = searchParams.get('priority') || '';
+  const sortBy = searchParams.get('sort_by') || 'priority';
   const scanId = searchParams.get('scan_id') || '';
 
   useEffect(() => {
@@ -35,7 +38,6 @@ export const FindingsPage: React.FC = () => {
     try {
       let data: Finding[] = [];
       if (scanId) {
-        // If scan_id is in URL, fetch findings just for that scan
         data = await scanService.getScanFindings(scanId);
       } else {
         const filters: FindingFilters = {};
@@ -43,6 +45,9 @@ export const FindingsPage: React.FC = () => {
         if (severity) filters.severity = severity;
         if (type) filters.type = type;
         if (status) filters.status = status;
+        if (riskLevel) filters.risk_level = riskLevel;
+        if (priority) filters.priority = priority;
+        if (sortBy) filters.sort_by = sortBy;
         data = await findingService.getFindings(filters);
       }
       setFindings(data);
@@ -55,7 +60,7 @@ export const FindingsPage: React.FC = () => {
 
   useEffect(() => {
     fetchFindings();
-  }, [repositoryId, severity, type, status, scanId]);
+  }, [repositoryId, severity, type, status, riskLevel, priority, sortBy, scanId]);
 
   const handleFilterChange = (key: string, value: string) => {
     const newParams = new URLSearchParams(searchParams);
@@ -64,7 +69,6 @@ export const FindingsPage: React.FC = () => {
     } else {
       newParams.delete(key);
     }
-    // If changing other filters, clear scan_id filter to show general list
     if (key !== 'scan_id') {
       newParams.delete('scan_id');
     }
@@ -75,18 +79,22 @@ export const FindingsPage: React.FC = () => {
     setSearchParams(new URLSearchParams());
   };
 
-  const getSeverityBadgeClass = (sev: string) => {
-    switch (sev) {
-      case 'CRITICAL':
-        return 'bg-red-500/10 text-red-400 border-red-500/20';
-      case 'HIGH':
-        return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
-      case 'MEDIUM':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-      case 'LOW':
-        return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-      default:
-        return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+  const getPriorityBadgeClass = (p?: string) => {
+    switch (p) {
+      case 'P0': return 'bg-red-500/10 text-red-400 border-red-500/30';
+      case 'P1': return 'bg-orange-500/10 text-orange-400 border-orange-500/30';
+      case 'P2': return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+      default: return 'bg-slate-500/10 text-slate-400 border-slate-500/30';
+    }
+  };
+
+  const getRiskLevelBadgeClass = (level?: string) => {
+    switch (level) {
+      case 'CRITICAL': return 'bg-red-500/10 text-red-400 border-red-500/20';
+      case 'HIGH': return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
+      case 'MEDIUM': return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+      case 'LOW': return 'bg-sky-500/10 text-sky-400 border-sky-500/20';
+      default: return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
     }
   };
 
@@ -96,10 +104,10 @@ export const FindingsPage: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
             <ShieldAlert className="w-6 h-6 text-sky-400" />
-            <span>Security Findings</span>
+            <span>Security Findings & Risk Engine</span>
           </h1>
           <p className="text-slate-400 mt-1">
-            {scanId ? 'Findings detected in this scan.' : 'Vulnerabilities and security issues detected across your repositories.'}
+            {scanId ? 'Findings detected in this scan.' : 'Prioritized security risks and vulnerabilities across your repositories.'}
           </p>
         </div>
         <button
@@ -113,11 +121,38 @@ export const FindingsPage: React.FC = () => {
 
       {/* Filters Bar */}
       {!scanId && (
-        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-wrap gap-4 items-center">
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-wrap gap-3 items-center">
           <div className="flex items-center space-x-2 text-slate-400 text-sm">
             <Filter className="w-4 h-4" />
             <span>Filters:</span>
           </div>
+
+          {/* Priority Filter */}
+          <select
+            value={priority}
+            onChange={(e) => handleFilterChange('priority', e.target.value)}
+            className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-slate-300 focus:outline-none focus:border-sky-500 transition-colors"
+          >
+            <option value="">All Priorities</option>
+            <option value="P0">P0 — Immediate</option>
+            <option value="P1">P1 — Urgent</option>
+            <option value="P2">P2 — Important</option>
+            <option value="P3">P3 — Routine</option>
+          </select>
+
+          {/* Risk Level Filter */}
+          <select
+            value={riskLevel}
+            onChange={(e) => handleFilterChange('risk_level', e.target.value)}
+            className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-slate-300 focus:outline-none focus:border-sky-500 transition-colors"
+          >
+            <option value="">All Risk Levels</option>
+            <option value="CRITICAL">Critical Risk</option>
+            <option value="HIGH">High Risk</option>
+            <option value="MEDIUM">Medium Risk</option>
+            <option value="LOW">Low Risk</option>
+            <option value="INFO">Info</option>
+          </select>
 
           {/* Repository Filter */}
           <select
@@ -131,20 +166,6 @@ export const FindingsPage: React.FC = () => {
                 {repo.name}
               </option>
             ))}
-          </select>
-
-          {/* Severity Filter */}
-          <select
-            value={severity}
-            onChange={(e) => handleFilterChange('severity', e.target.value)}
-            className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-slate-300 focus:outline-none focus:border-sky-500 transition-colors"
-          >
-            <option value="">All Severities</option>
-            <option value="CRITICAL">Critical</option>
-            <option value="HIGH">High</option>
-            <option value="MEDIUM">Medium</option>
-            <option value="LOW">Low</option>
-            <option value="INFO">Info</option>
           </select>
 
           {/* Type Filter */}
@@ -171,12 +192,27 @@ export const FindingsPage: React.FC = () => {
             <option value="FALSE_POSITIVE">False Positive</option>
           </select>
 
-          {(repositoryId || severity || type || status) && (
+          {/* Sort By */}
+          <div className="flex items-center space-x-1.5 ml-auto border-l border-slate-800 pl-3">
+            <ArrowUpDown className="w-3.5 h-3.5 text-slate-500" />
+            <select
+              value={sortBy}
+              onChange={(e) => handleFilterChange('sort_by', e.target.value)}
+              className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-sky-500 transition-colors"
+            >
+              <option value="priority">Sort by Priority (P0 → P3)</option>
+              <option value="risk_score">Sort by Risk Score (Desc)</option>
+              <option value="severity">Sort by Severity</option>
+              <option value="created_at">Sort by Date Detected</option>
+            </select>
+          </div>
+
+          {(repositoryId || severity || type || status || riskLevel || priority) && (
             <button
               onClick={clearFilters}
-              className="text-xs text-sky-400 hover:text-sky-300 font-medium ml-auto"
+              className="text-xs text-sky-400 hover:text-sky-300 font-medium"
             >
-              Clear all filters
+              Clear filters
             </button>
           )}
         </div>
@@ -194,17 +230,17 @@ export const FindingsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Findings Table/List */}
+      {/* Findings Table */}
       {loading ? (
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
         </div>
       ) : findings.length === 0 ? (
         <div className="border border-dashed border-slate-800 rounded-xl p-12 text-center bg-slate-900/50">
-          <h3 className="text-xl font-medium text-white mb-2">No findings found</h3>
+          <h3 className="text-xl font-medium text-white mb-2">No findings match criteria</h3>
           <p className="text-slate-400 max-w-md mx-auto">
-            {repositoryId || severity || type || status
-              ? 'Try modifying your filters to see more findings.'
+            {repositoryId || severity || type || status || riskLevel || priority
+              ? 'Try modifying your filters to view more findings.'
               : 'Secure! No security issues have been identified yet.'}
           </p>
         </div>
@@ -213,15 +249,14 @@ export const FindingsPage: React.FC = () => {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-xs font-semibold uppercase text-slate-500 tracking-wider bg-slate-950/30 border-b border-slate-800">
-                  <th className="text-left px-6 py-4">Severity</th>
-                  <th className="text-left px-6 py-4">Type</th>
+                <tr className="text-xs font-semibold uppercase text-slate-500 tracking-wider bg-slate-950/40 border-b border-slate-800">
+                  <th className="text-left px-6 py-4">Priority</th>
+                  <th className="text-left px-6 py-4">Score & Level</th>
                   <th className="text-left px-6 py-4">Finding</th>
+                  <th className="text-left px-6 py-4">Type</th>
                   <th className="text-left px-6 py-4">Repository</th>
-                  <th className="text-left px-6 py-4">File</th>
+                  <th className="text-left px-6 py-4">File Location</th>
                   <th className="text-left px-6 py-4">Scanner</th>
-                  <th className="text-left px-6 py-4">Status</th>
-                  <th className="text-left px-6 py-4">Detected</th>
                   <th className="text-left px-6 py-4"></th>
                 </tr>
               </thead>
@@ -235,20 +270,32 @@ export const FindingsPage: React.FC = () => {
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
-                          className={`px-2 py-0.5 rounded-full border text-xs font-semibold ${getSeverityBadgeClass(
-                            finding.severity
+                          className={`px-2.5 py-1 rounded-md border text-xs font-mono font-bold ${getPriorityBadgeClass(
+                            finding.priority
                           )}`}
                         >
-                          {finding.severity}
+                          {finding.priority || 'P3'}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-slate-300 font-medium">
-                        {finding.type}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold text-white font-mono text-sm">{finding.risk_score ?? 0}</span>
+                          <span
+                            className={`px-2 py-0.5 rounded-full border text-[10px] font-bold uppercase ${getRiskLevelBadgeClass(
+                              finding.risk_level
+                            )}`}
+                          >
+                            {finding.risk_level || 'INFO'}
+                          </span>
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-white font-medium max-w-xs truncate" title={finding.title}>
                           {finding.title}
                         </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-slate-300 text-xs font-medium">
+                        {finding.type}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-slate-400">
                         <div className="flex items-center space-x-1.5">
@@ -256,28 +303,19 @@ export const FindingsPage: React.FC = () => {
                           <span>{repo?.name || 'Unknown'}</span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-slate-400 font-mono text-xs truncate max-w-[180px]" title={finding.file_path}>
+                      <td className="px-6 py-4 text-slate-400 font-mono text-xs truncate max-w-[160px]" title={finding.file_path}>
                         {finding.file_path || '—'}
                         {finding.line_number ? `:${finding.line_number}` : ''}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-slate-400 text-xs uppercase">
+                      <td className="px-6 py-4 whitespace-nowrap text-slate-400 text-xs uppercase font-mono">
                         {finding.scanner}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="flex items-center space-x-1.5 text-slate-300">
-                          <span className={`w-2 h-2 rounded-full ${finding.status === 'OPEN' ? 'bg-amber-500' : 'bg-slate-500'}`}></span>
-                          <span className="capitalize">{finding.status.toLowerCase().replace('_', ' ')}</span>
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-slate-500 text-xs">
-                        {new Date(finding.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         <Link
                           to={`/findings/${finding.id}`}
-                          className="text-sky-400 hover:text-sky-300 text-xs font-medium transition-colors"
+                          className="text-sky-400 hover:text-sky-300 text-xs font-medium transition-colors inline-flex items-center space-x-1"
                         >
-                          Details →
+                          <span>Risk Details →</span>
                         </Link>
                       </td>
                     </tr>

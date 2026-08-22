@@ -53,3 +53,4 @@ class Finding(Base):
     
     repository = relationship("Repository", back_populates="findings", lazy="raise")
     scan = relationship("Scan", back_populates="findings", lazy="raise")
+    risk_assessment = relationship("RiskAssessment", back_populates="finding", uselist=False, cascade="all, delete-orphan", lazy="raise")

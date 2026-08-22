@@ -1,5 +1,12 @@
 import api from './api';
-import { Scan, Finding, FindingListResponse, FindingFilters } from '../types';
+import {
+  Scan,
+  Finding,
+  FindingListResponse,
+  FindingFilters,
+  RiskAssessment,
+  RepositoryRecalculateResponse
+} from '../types';
 
 export const scanService = {
   async scanRepository(repositoryId: string): Promise<Scan> {
@@ -25,6 +32,9 @@ export const findingService = {
     if (filters?.severity) params.severity = filters.severity;
     if (filters?.type) params.type = filters.type;
     if (filters?.status) params.status = filters.status;
+    if (filters?.risk_level) params.risk_level = filters.risk_level;
+    if (filters?.priority) params.priority = filters.priority;
+    if (filters?.sort_by) params.sort_by = filters.sort_by;
 
     const response = await api.get<FindingListResponse>('/findings', { params });
     return response.data.findings;
@@ -36,4 +46,21 @@ export const findingService = {
   }
 };
 
-export default { scanService, findingService };
+export const riskService = {
+  async getFindingRisk(findingId: string): Promise<RiskAssessment> {
+    const response = await api.get<RiskAssessment>(`/findings/${findingId}/risk`);
+    return response.data;
+  },
+
+  async recalculateFindingRisk(findingId: string): Promise<RiskAssessment> {
+    const response = await api.post<RiskAssessment>(`/findings/${findingId}/risk/recalculate`);
+    return response.data;
+  },
+
+  async recalculateRepositoryRisks(repositoryId: string): Promise<RepositoryRecalculateResponse> {
+    const response = await api.post<RepositoryRecalculateResponse>(`/repositories/${repositoryId}/risk/recalculate`);
+    return response.data;
+  }
+};
+
+export default { scanService, findingService, riskService };

@@ -2,6 +2,8 @@ from datetime import datetime
 from uuid import UUID
 from typing import Optional, List
 from pydantic import BaseModel, ConfigDict
+from app.schemas.risk import RiskAssessmentResponse
+
 
 class FindingResponse(BaseModel):
     id: UUID
@@ -19,8 +21,15 @@ class FindingResponse(BaseModel):
     recommendation: Optional[str] = None
     status: str
     created_at: datetime
-    
+
+    # Risk Engine Computed/Relational Fields
+    risk_score: Optional[int] = None
+    risk_level: Optional[str] = None
+    priority: Optional[str] = None
+    risk_assessment: Optional[RiskAssessmentResponse] = None
+
     model_config = ConfigDict(from_attributes=True)
+
 
 class FindingListResponse(BaseModel):
     findings: List[FindingResponse]

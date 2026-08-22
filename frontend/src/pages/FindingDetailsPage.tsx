@@ -1,34 +1,62 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FolderGit2, FileText } from 'lucide-react';
-import { findingService } from '../services/scan';
+import { ArrowLeft, FolderGit2, FileText, Flame, CheckCircle, RefreshCw } from 'lucide-react';
+import { findingService, riskService } from '../services/scan';
 import { repositoryService } from '../services/repository';
-import { Finding, Repository } from '../types';
+import { Finding, Repository, RiskAssessment } from '../types';
 
 export const FindingDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [finding, setFinding] = useState<Finding | null>(null);
   const [repository, setRepository] = useState<Repository | null>(null);
+  const [riskAssessment, setRiskAssessment] = useState<RiskAssessment | null>(null);
   const [loading, setLoading] = useState(true);
+  const [recalculating, setRecalculating] = useState(false);
+
+  const fetchFindingDetails = async () => {
+    if (!id) return;
+    try {
+      const data = await findingService.getFinding(id);
+      setFinding(data);
+      if (data.risk_assessment) {
+        setRiskAssessment(data.risk_assessment);
+      } else {
+        try {
+          const riskData = await riskService.getFindingRisk(id);
+          setRiskAssessment(riskData);
+        } catch {
+          // ignore
+        }
+      }
+      const repo = await repositoryService.getRepository(data.repository_id);
+      setRepository(repo);
+    } catch (error) {
+      console.error('Failed to fetch finding details', error);
+      navigate('/findings');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchFindingDetails = async () => {
-      if (!id) return;
-      try {
-        const data = await findingService.getFinding(id);
-        setFinding(data);
-        const repo = await repositoryService.getRepository(data.repository_id);
-        setRepository(repo);
-      } catch (error) {
-        console.error('Failed to fetch finding details', error);
-        navigate('/findings');
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchFindingDetails();
   }, [id, navigate]);
+
+  const handleRecalculateRisk = async () => {
+    if (!id) return;
+    setRecalculating(true);
+    try {
+      const updatedRisk = await riskService.recalculateFindingRisk(id);
+      setRiskAssessment(updatedRisk);
+      const updatedFinding = await findingService.getFinding(id);
+      setFinding(updatedFinding);
+    } catch (err) {
+      console.error('Failed to recalculate risk', err);
+    } finally {
+      setRecalculating(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -40,23 +68,37 @@ export const FindingDetailsPage: React.FC = () => {
 
   if (!finding) return null;
 
+  const getPriorityBadgeClass = (p?: string) => {
+    switch (p) {
+      case 'P0': return 'bg-red-500/10 text-red-400 border-red-500/30';
+      case 'P1': return 'bg-orange-500/10 text-orange-400 border-orange-500/30';
+      case 'P2': return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+      default: return 'bg-slate-500/10 text-slate-400 border-slate-500/30';
+    }
+  };
+
+  const getRiskLevelBadgeClass = (level?: string) => {
+    switch (level) {
+      case 'CRITICAL': return 'bg-red-500/10 text-red-400 border-red-500/20';
+      case 'HIGH': return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
+      case 'MEDIUM': return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+      case 'LOW': return 'bg-sky-500/10 text-sky-400 border-sky-500/20';
+      default: return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+    }
+  };
+
   const getSeverityBadgeClass = (sev: string) => {
     switch (sev) {
-      case 'CRITICAL':
-        return 'bg-red-500/10 text-red-400 border-red-500/20';
-      case 'HIGH':
-        return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
-      case 'MEDIUM':
-        return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-      case 'LOW':
-        return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-      default:
-        return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+      case 'CRITICAL': return 'bg-red-500/10 text-red-400 border-red-500/20';
+      case 'HIGH': return 'bg-orange-500/10 text-orange-400 border-orange-500/20';
+      case 'MEDIUM': return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+      case 'LOW': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+      default: return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
     }
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
@@ -68,14 +110,99 @@ export const FindingDetailsPage: React.FC = () => {
           </button>
           <div>
             <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              Finding Details
+              Finding & Risk Details
             </span>
             <h1 className="text-xl font-bold text-white tracking-tight truncate max-w-xl" title={finding.title}>
               {finding.title}
             </h1>
           </div>
         </div>
+
+        <button
+          onClick={handleRecalculateRisk}
+          disabled={recalculating}
+          className="inline-flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white px-3.5 py-2 rounded-lg text-sm font-medium border border-slate-800 transition-colors disabled:opacity-50"
+        >
+          <RefreshCw className={`w-4 h-4 ${recalculating ? 'animate-spin' : ''}`} />
+          <span>Recalculate Risk</span>
+        </button>
       </div>
+
+      {/* Risk Engine Banner */}
+      {riskAssessment && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-white flex items-center space-x-2">
+              <Flame className="w-5 h-5 text-rose-500" />
+              <span>Risk Engine Assessment</span>
+            </h2>
+            <div className="flex items-center space-x-2">
+              <span className={`px-3 py-1 rounded-md border text-sm font-mono font-bold ${getPriorityBadgeClass(riskAssessment.priority)}`}>
+                {riskAssessment.priority}
+              </span>
+              <span className={`px-3 py-1 rounded-full border text-xs font-bold ${getRiskLevelBadgeClass(riskAssessment.risk_level)}`}>
+                {riskAssessment.risk_level}
+              </span>
+            </div>
+          </div>
+
+          {/* Risk Score Gauge & Factors */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-950/60 p-4 rounded-xl border border-slate-800/80">
+            <div className="md:col-span-1 border-b md:border-b-0 md:border-r border-slate-800/80 pb-4 md:pb-0 md:pr-4 flex flex-col justify-center items-center text-center">
+              <span className="text-xs uppercase tracking-wider font-semibold text-slate-500">Risk Score</span>
+              <div className="text-4xl font-extrabold text-white tracking-tight mt-1">
+                {riskAssessment.risk_score} <span className="text-xs font-normal text-slate-500">/ 100</span>
+              </div>
+            </div>
+
+            <div className="md:col-span-3 grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+              <div>
+                <span className="text-slate-500 block mb-0.5 font-medium">Severity Factor</span>
+                <span className="font-mono text-slate-200 font-semibold">{riskAssessment.factors.severity} / 10</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block mb-0.5 font-medium">Exploitability</span>
+                <span className="font-mono text-slate-200 font-semibold">{riskAssessment.factors.exploitability}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block mb-0.5 font-medium">Exposure</span>
+                <span className="font-mono text-slate-200 font-semibold">{riskAssessment.factors.exposure}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block mb-0.5 font-medium">Asset Criticality</span>
+                <span className="font-mono text-slate-200 font-semibold">{riskAssessment.factors.asset_criticality}</span>
+              </div>
+              <div>
+                <span className="text-slate-500 block mb-0.5 font-medium">Confidence</span>
+                <span className="font-mono text-slate-200 font-semibold">{riskAssessment.factors.confidence}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Explanation */}
+          {riskAssessment.explanation && (
+            <div className="space-y-1.5">
+              <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Why is this risky?</h3>
+              <p className="text-slate-300 text-sm leading-relaxed bg-slate-950/40 p-3.5 rounded-lg border border-slate-800/60">
+                {riskAssessment.explanation}
+              </p>
+            </div>
+          )}
+
+          {/* Recommended Action */}
+          {riskAssessment.recommended_action && (
+            <div className="space-y-1.5">
+              <h3 className="text-xs font-semibold text-sky-400 uppercase tracking-wider flex items-center space-x-1.5">
+                <CheckCircle className="w-4 h-4 text-sky-400" />
+                <span>Recommended Action</span>
+              </h3>
+              <pre className="text-slate-200 text-xs leading-relaxed bg-slate-950/60 p-4 rounded-lg border border-slate-800/80 font-sans whitespace-pre-wrap">
+                {riskAssessment.recommended_action}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Main Details */}
@@ -100,22 +227,12 @@ export const FindingDetailsPage: React.FC = () => {
                 </p>
               </div>
             )}
-
-            {finding.recommendation && (
-              <div>
-                <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Recommendation</h3>
-                <p className="text-slate-200 leading-relaxed text-sm">
-                  {finding.recommendation}
-                </p>
-              </div>
-            )}
           </div>
         </div>
 
         {/* Sidebar Info */}
         <div className="space-y-6">
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
-            {/* Status Dropdown / Action */}
             <div>
               <span className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">Status</span>
               <div className="relative">
@@ -129,11 +246,7 @@ export const FindingDetailsPage: React.FC = () => {
                   <option value="RESOLVED">Resolved</option>
                   <option value="FALSE_POSITIVE">False Positive</option>
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
-                  <span className="text-[10px]">▼</span>
-                </div>
               </div>
-              <p className="text-[10px] text-slate-500 mt-1">Workflow automation coming in a future version.</p>
             </div>
 
             <div>
@@ -186,13 +299,6 @@ export const FindingDetailsPage: React.FC = () => {
                 </span>
               </div>
             )}
-
-            <div>
-              <span className="block text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Detected</span>
-              <span className="text-sm text-slate-300">
-                {new Date(finding.created_at).toLocaleString()}
-              </span>
-            </div>
           </div>
         </div>
       </div>

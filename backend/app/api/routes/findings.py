@@ -17,17 +17,23 @@ def list_findings(
     severity: Optional[str] = None,
     type: Optional[str] = None,
     status_filter: Optional[str] = Query(None, alias="status"),
+    risk_level: Optional[str] = None,
+    priority: Optional[str] = None,
+    sort_by: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """List all findings for the authenticated user, with optional filters."""
+    """List all findings for the authenticated user with optional filters and sorting."""
     findings = FindingService.get_findings_for_user(
         db,
         current_user.id,
         repository_id=repository_id,
         severity=severity,
         type=type,
-        status=status_filter
+        status=status_filter,
+        risk_level=risk_level,
+        priority=priority,
+        sort_by=sort_by
     )
     return {"findings": findings}
 
@@ -38,7 +44,7 @@ def get_finding(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get details of a specific finding."""
+    """Get details of a specific finding including its risk assessment."""
     finding = FindingService.get_finding(db, finding_id, current_user.id)
     if not finding:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Finding not found.")

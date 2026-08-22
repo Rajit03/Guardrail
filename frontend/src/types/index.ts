@@ -32,3 +32,4 @@ export interface ApiError {
 
 export * from './repository';
 export * from './scan';
+export * from './risk';
