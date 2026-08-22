@@ -2,12 +2,13 @@ import uuid
 import hashlib
 import logging
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
 from app.models.scan import Scan
 from app.models.finding import Finding
+from app.models.repository import Repository
 from app.services.repository_acquisition import acquire_repository
 from app.scanners.runner import ScannerRunner
 
@@ -16,24 +17,35 @@ logger = logging.getLogger(__name__)
 
 class ScanService:
     @staticmethod
-    def get_scan(db: Session, scan_id) -> Scan | None:
+    def get_scan(db: Session, scan_id: uuid.UUID | str) -> Optional[Scan]:
+        if isinstance(scan_id, str):
+            try:
+                scan_id = uuid.UUID(scan_id)
+            except ValueError:
+                return None
         return db.scalar(select(Scan).where(Scan.id == scan_id))
 
     @staticmethod
-    def get_scans_for_repository(db: Session, repository_id: uuid.UUID) -> List[Scan]:
-        return db.scalars(
+    def get_scans_for_repository(db: Session, repository_id: uuid.UUID | str) -> List[Scan]:
+        if isinstance(repository_id, str):
+            try:
+                repository_id = uuid.UUID(repository_id)
+            except ValueError:
+                return []
+        return list(db.scalars(
             select(Scan)
             .where(Scan.repository_id == repository_id)
             .order_by(Scan.created_at.desc())
-        ).all()
+        ).all())
 
     @staticmethod
-    def run_scan(db: Session, repository) -> Scan:
+    def run_scan(db: Session, repository: Repository) -> Scan:
         # 1. Create Scan record with RUNNING status
+        now_utc = datetime.now(timezone.utc)
         scan = Scan(
             repository_id=repository.id,
             status="RUNNING",
-            started_at=datetime.now(timezone.utc)
+            started_at=now_utc
         )
         db.add(scan)
         db.commit()
@@ -82,8 +94,9 @@ class ScanService:
             scan.error_message = str(e)[:1024]
 
         finally:
-            scan.completed_at = datetime.now(timezone.utc)
-            repository.last_scan_at = scan.completed_at
+            finished_at = datetime.now(timezone.utc)
+            scan.completed_at = finished_at
+            repository.last_scan_at = finished_at
             db.commit()
             db.refresh(scan)
 

@@ -33,5 +33,5 @@ class Scan(Base):
         index=True
     )
     
-    repository = relationship("Repository", back_populates="scans")
-    findings = relationship("Finding", back_populates="scan", cascade="all, delete-orphan")
+    repository = relationship("Repository", back_populates="scans", lazy="raise")
+    findings = relationship("Finding", back_populates="scan", cascade="all, delete-orphan", lazy="raise")

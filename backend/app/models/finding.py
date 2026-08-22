@@ -51,5 +51,5 @@ class Finding(Base):
         nullable=False
     )
     
-    repository = relationship("Repository", back_populates="findings")
-    scan = relationship("Scan", back_populates="findings")
+    repository = relationship("Repository", back_populates="findings", lazy="raise")
+    scan = relationship("Scan", back_populates="findings", lazy="raise")

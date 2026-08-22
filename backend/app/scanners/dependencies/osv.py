@@ -1,106 +1,133 @@
-import json
 import logging
-import os
-import re
-from typing import List, Dict, Any
-
+from typing import List
 import httpx
-from ..base import BaseScanner, FindingData
+
+from app.scanners.base import FindingData
+from app.scanners.dependencies.scanner import BaseDependencyScanner
+from app.scanners.dependencies.node import parse_node_dependencies
+from app.scanners.dependencies.python import parse_python_dependencies
 
 logger = logging.getLogger(__name__)
 
 OSV_URL = "https://api.osv.dev/v1/querybatch"
 
-class OSVScanner(BaseScanner):
+
+def determine_severity(vuln_data: dict) -> str:
+    """
+    Extracts or maps severity from OSV vulnerability record.
+    Returns standard Guardrail severity string: CRITICAL, HIGH, MEDIUM, LOW, INFO.
+    """
+    # Check severity field in OSV record
+    severities = vuln_data.get("severity", [])
+    if isinstance(severities, list):
+        for s in severities:
+            if isinstance(s, dict) and s.get("type") == "CVSS_V3":
+                score_str = s.get("score", "")
+                # Basic CVSS parsing if score string is a float like "8.5"
+                try:
+                    score = float(score_str)
+                    if score >= 9.0:
+                        return "CRITICAL"
+                    elif score >= 7.0:
+                        return "HIGH"
+                    elif score >= 4.0:
+                        return "MEDIUM"
+                    elif score > 0.0:
+                        return "LOW"
+                except ValueError:
+                    pass
+
+    # Check database_specific severity if present
+    db_specific = vuln_data.get("database_specific", {})
+    if isinstance(db_specific, dict):
+        sev_str = str(db_specific.get("severity", "")).upper()
+        if sev_str in ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"):
+            return sev_str
+
+    # Default to HIGH for known vulnerabilities
+    return "HIGH"
+
+
+class OSVScanner(BaseDependencyScanner):
+    """
+    Dependency vulnerability scanner integrating with OSV.dev.
+    Statically inspects dependency manifests without executing repository code.
+    """
+
     def scan(self, repository_path: str) -> List[FindingData]:
-        findings = []
+        findings: List[FindingData] = []
         queries = []
-        file_map = []  # To map query index back to file and package
+        file_map = []
 
-        # 1. Parse package.json
-        package_json_path = os.path.join(repository_path, "package.json")
-        if os.path.exists(package_json_path):
-            try:
-                with open(package_json_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    deps = {**data.get("dependencies", {}), **data.get("devDependencies", {})}
-                    for pkg, ver in deps.items():
-                        # Basic cleanup of version strings (e.g., ^1.2.3 -> 1.2.3)
-                        clean_ver = re.sub(r'^[~^><=]+', '', ver)
-                        queries.append({
-                            "package": {"name": pkg, "ecosystem": "npm"},
-                            "version": clean_ver
-                        })
-                        file_map.append(("package.json", pkg, clean_ver))
-            except Exception as e:
-                logger.error(f"Failed to parse package.json: {e}")
+        # 1. Parse Node dependencies
+        node_queries, node_map = parse_node_dependencies(repository_path)
+        queries.extend(node_queries)
+        file_map.extend(node_map)
 
-        # 2. Parse package-lock.json (very simplified, usually better to parse lockfile properly)
-        # For simplicity, we just use package.json in this MVP if lock is too complex, but let's try a basic lockfile parse
-        package_lock_path = os.path.join(repository_path, "package-lock.json")
-        if os.path.exists(package_lock_path):
-            try:
-                with open(package_lock_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if "packages" in data:
-                        for pkg_path, pkg_data in data["packages"].items():
-                            if pkg_path and "version" in pkg_data:
-                                pkg_name = pkg_path.split("node_modules/")[-1]
-                                ver = pkg_data["version"]
-                                queries.append({
-                                    "package": {"name": pkg_name, "ecosystem": "npm"},
-                                    "version": ver
-                                })
-                                file_map.append(("package-lock.json", pkg_name, ver))
-            except Exception as e:
-                logger.error(f"Failed to parse package-lock.json: {e}")
-
-        # 3. Parse requirements.txt
-        req_path = os.path.join(repository_path, "requirements.txt")
-        if os.path.exists(req_path):
-            try:
-                with open(req_path, "r", encoding="utf-8") as f:
-                    for line in f:
-                        line = line.strip()
-                        if line and not line.startswith("#"):
-                            # Match package==version
-                            match = re.match(r'^([a-zA-Z0-9_\-]+)==([a-zA-Z0-9_\.\-]+)', line)
-                            if match:
-                                pkg, ver = match.groups()
-                                queries.append({
-                                    "package": {"name": pkg, "ecosystem": "PyPI"},
-                                    "version": ver
-                                })
-                                file_map.append(("requirements.txt", pkg, ver))
-            except Exception as e:
-                logger.error(f"Failed to parse requirements.txt: {e}")
+        # 2. Parse Python dependencies
+        python_queries, python_map = parse_python_dependencies(repository_path)
+        queries.extend(python_queries)
+        file_map.extend(python_map)
 
         if not queries:
             return findings
 
-        # Query OSV
+        # 3. Query OSV API in batch
         try:
-            # Chunking requests if they are too large, but for MVP send all at once
-            response = httpx.post(OSV_URL, json={"queries": queries}, timeout=30.0)
+            # Send batch query to OSV API with 30s timeout
+            response = httpx.post(
+                OSV_URL,
+                json={"queries": queries},
+                headers={"Content-Type": "application/json"},
+                timeout=30.0
+            )
+
             if response.status_code == 200:
-                results = response.json().get("results", [])
+                data = response.json()
+                results = data.get("results", [])
+
                 for i, res in enumerate(results):
+                    if i >= len(file_map):
+                        break
+                    file_path, pkg_name, ver = file_map[i]
                     vulns = res.get("vulns", [])
-                    if vulns:
-                        file_path, pkg_name, ver = file_map[i]
+
+                    if isinstance(vulns, list):
                         for vuln in vulns:
+                            if not isinstance(vuln, dict):
+                                continue
+                            vuln_id = vuln.get("id", "UNKNOWN-VULN")
+                            summary = vuln.get("summary") or vuln.get("details") or "Known dependency vulnerability detected."
+                            if len(summary) > 255:
+                                summary = summary[:252] + "..."
+
+                            severity = determine_severity(vuln)
+
+                            recommendation = f"Upgrade '{pkg_name}' from version {ver} to a fixed release."
+                            if "affected" in vuln and isinstance(vuln["affected"], list):
+                                for aff in vuln["affected"]:
+                                    ranges = aff.get("ranges", [])
+                                    for r in ranges:
+                                        events = r.get("events", [])
+                                        for ev in events:
+                                            if "fixed" in ev:
+                                                recommendation = f"Upgrade '{pkg_name}' to version {ev['fixed']} or higher."
+
                             finding = FindingData(
                                 type="DEPENDENCY",
-                                severity="HIGH", # Could map from OSV severity if present
+                                severity=severity,
                                 title=f"Vulnerable dependency detected: {pkg_name}",
                                 scanner="osv",
-                                description=vuln.get("summary", "Installed package version is affected by a known vulnerability."),
+                                description=summary,
                                 file_path=file_path,
-                                rule_id=vuln.get("id", ""),
-                                evidence=f"Package {pkg_name}@{ver} has vulnerability {vuln.get('id')}",
-                                recommendation="Upgrade to a fixed version or review the vulnerability details."
+                                line_number=None,
+                                rule_id=vuln_id,
+                                evidence=f"Package '{pkg_name}' (version {ver}) is affected by {vuln_id}.",
+                                recommendation=recommendation
                             )
                             findings.append(finding)
+            else:
+                logger.error(f"OSV API returned status code {response.status_code}: {response.text}")
         except Exception as e:
             logger.error(f"Error querying OSV API: {e}")
 
