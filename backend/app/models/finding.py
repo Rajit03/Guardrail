@@ -31,13 +31,13 @@ class Finding(Base):
         nullable=False,
         index=True
     )
-    type: Mapped[str] = mapped_column(String(50), nullable=False)
+    type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     severity: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     file_path: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
     line_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    scanner: Mapped[str] = mapped_column(String(50), nullable=False)
+    scanner: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     rule_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     evidence: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     recommendation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -54,7 +54,8 @@ class Finding(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
-        nullable=False
+        nullable=False,
+        index=True
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
