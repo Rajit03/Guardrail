@@ -99,7 +99,7 @@ export const RepositoryDetailsPage: React.FC = () => {
 
   if (!repository) return null;
 
-  // Calculate risk counts
+  // Calculate risk counts for active findings
   let criticalCount = 0;
   let highCount = 0;
   let mediumCount = 0;
@@ -268,23 +268,48 @@ export const RepositoryDetailsPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Scanner Status Breakdown (If latest scan exists) */}
+          {/* Scanner Diagnostic Summary Card */}
           {summary && (
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
-              <h2 className="text-lg font-medium text-white flex items-center justify-between">
-                <span>Scanner Diagnostic Summary</span>
-                <span className="text-xs text-slate-400 font-mono font-normal">{summary.files_scanned} files inspected</span>
-              </h2>
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h2 className="text-lg font-medium text-white">Scanner Diagnostic Summary</h2>
+                <span className="text-xs text-slate-400 font-mono font-medium bg-slate-950 px-2.5 py-1 rounded border border-slate-800">
+                  {summary.files_scanned} files inspected
+                </span>
+              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* File Inventory Metrics */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-950/40 p-3 rounded-lg border border-slate-800/60 text-slate-400">
+                <div>
+                  <span className="text-slate-500 block">Repository Files</span>
+                  <strong className="text-white text-sm font-mono">{summary.files_scanned ?? 0}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Hidden Files</span>
+                  <strong className="text-white text-sm font-mono">{summary.hidden_files ?? 0}</strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">.env File</span>
+                  <strong className={summary.env_file_present ? 'text-emerald-400 font-semibold' : 'text-slate-500'}>
+                    {summary.env_file_present ? `Present (${summary.env_file_size ?? 0}B)` : 'Missing'}
+                  </strong>
+                </div>
+                <div>
+                  <span className="text-slate-500 block">Gitleaks Version</span>
+                  <strong className="text-slate-200 font-mono">{summary.scanners?.gitleaks?.version || '8.18.2'}</strong>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                 {/* Secret Scanner Card */}
                 <div className="bg-slate-950/60 border border-slate-800 rounded-lg p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-white text-sm">Secret Scanner (Gitleaks)</span>
                     {renderScannerStatusBadge(summary.secret_scanner_status)}
                   </div>
-                  <div className="text-xs text-slate-400">
-                    <div>Raw Detections: <strong className="text-slate-200">{summary.scanners?.gitleaks?.raw_findings ?? 0}</strong></div>
+                  <div className="text-xs text-slate-400 space-y-1">
+                    <div>Gitleaks Version: <strong className="text-slate-200 font-mono">{summary.scanners?.gitleaks?.version || '8.18.2'}</strong></div>
+                    <div>Raw Detections: <strong className="text-slate-200 font-mono">{summary.scanners?.gitleaks?.raw_findings ?? 0}</strong></div>
                     {summary.scanners?.gitleaks?.error_message && (
                       <div className="text-red-400 mt-1 text-[11px] leading-tight">
                         Error: {summary.scanners.gitleaks.error_message}
@@ -299,9 +324,9 @@ export const RepositoryDetailsPage: React.FC = () => {
                     <span className="font-semibold text-white text-sm">Dependency Scanner (OSV)</span>
                     {renderScannerStatusBadge(summary.dependency_scanner_status)}
                   </div>
-                  <div className="text-xs text-slate-400">
-                    <div>Raw Advisories: <strong className="text-slate-200">{summary.scanners?.osv?.raw_vulnerabilities ?? 0}</strong></div>
-                    <div>Deduplicated: <strong className="text-slate-200">{summary.scanners?.osv?.deduplicated_findings ?? 0}</strong></div>
+                  <div className="text-xs text-slate-400 space-y-1">
+                    <div>Raw Advisories: <strong className="text-slate-200 font-mono">{summary.scanners?.osv?.raw_vulnerabilities ?? 0}</strong></div>
+                    <div>Deduplicated: <strong className="text-slate-200 font-mono">{summary.scanners?.osv?.deduplicated_findings ?? 0}</strong></div>
                     {summary.scanners?.osv?.error_message && (
                       <div className="text-amber-400/90 mt-1 text-[11px] leading-tight">
                         Note: {summary.scanners.osv.error_message}

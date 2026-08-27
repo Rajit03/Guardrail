@@ -49,7 +49,7 @@ def test_gitleaks_parses_findings_and_masks_secrets(tmp_path):
         res = scanner.scan(str(tmp_path))
 
     assert res.executed is True
-    assert res.status == "COMPLETED"
+    assert res.status == "COMPLETED_WITH_FINDINGS"
     assert len(res.findings) == 1
 
     f = res.findings[0]

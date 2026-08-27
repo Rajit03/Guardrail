@@ -59,7 +59,7 @@ class TestGitleaksScanner:
              patch("os.path.getsize", return_value=0):
             res = scanner.scan(str(tmp_path))
 
-        assert res.status == "COMPLETED"
+        assert res.status == "COMPLETED_NO_FINDINGS"
         assert len(res.findings) == 0
 
     def test_gitleaks_detects_secret_and_masks_value(self, tmp_path):
@@ -94,7 +94,7 @@ class TestGitleaksScanner:
         with patch("subprocess.run", side_effect=fake_run):
             res = scanner.scan(str(tmp_path))
 
-        assert res.status == "COMPLETED"
+        assert res.status == "COMPLETED_WITH_FINDINGS"
         assert len(res.findings) == 1
         finding = res.findings[0]
         assert finding.type == "SECRET"

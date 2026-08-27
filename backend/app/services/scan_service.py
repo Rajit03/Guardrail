@@ -17,15 +17,18 @@ from app.scanners.runner import ScannerRunner
 logger = logging.getLogger(__name__)
 
 
-def inspect_repository_files(repo_path: str) -> Tuple[int, List[str], List[str], bool]:
+def inspect_repository_files(repo_path: str) -> Tuple[int, List[str], List[str], bool, int, int, List[str]]:
     """
-    Recursively inspects repository path to produce file counts and manifest lists.
-    Returns: (total_files_count, dependency_files, python_files, dot_env_exists)
+    Recursively inspects repository path to produce file counts, manifest lists, and safe inventory.
+    Returns: (total_files_count, dependency_files, python_files, dot_env_exists, env_file_size, hidden_files_count, file_list)
     """
     total_files = 0
     dependency_files = []
     python_files = []
+    file_list = []
     dot_env_exists = False
+    env_file_size = 0
+    hidden_files_count = 0
 
     known_manifests = {
         "requirements.txt", "pyproject.toml", "poetry.lock", "pipfile", "pipfile.lock",
@@ -40,9 +43,17 @@ def inspect_repository_files(repo_path: str) -> Tuple[int, List[str], List[str],
             total_files += 1
             full_p = os.path.join(root, filename)
             rel_p = os.path.relpath(full_p, repo_path).replace("\\", "/")
+            file_list.append(rel_p)
+
+            if filename.startswith("."):
+                hidden_files_count += 1
 
             if filename.lower() == ".env" or filename.lower().startswith(".env."):
                 dot_env_exists = True
+                try:
+                    env_file_size = os.path.getsize(full_p)
+                except OSError:
+                    pass
 
             if filename.lower() in known_manifests or (filename.endswith(".txt") and "requirements" in root.lower()):
                 dependency_files.append(rel_p)
@@ -50,7 +61,7 @@ def inspect_repository_files(repo_path: str) -> Tuple[int, List[str], List[str],
             if filename.endswith(".py"):
                 python_files.append(rel_p)
 
-    return total_files, dependency_files, python_files, dot_env_exists
+    return total_files, dependency_files, python_files, dot_env_exists, env_file_size, hidden_files_count, sorted(file_list)
 
 
 class ScanService:
@@ -93,10 +104,10 @@ class ScanService:
         try:
             with acquire_repository(repository) as repo_path:
                 # 1. Inspect repository contents & log diagnostic context
-                total_files, dep_files, py_files, env_exists = inspect_repository_files(repo_path)
+                total_files, dep_files, py_files, env_exists, env_size, hidden_cnt, file_list = inspect_repository_files(repo_path)
                 logger.info(
                     f"Acquired Repository Path: '{repo_path}' | Total Files: {total_files} | "
-                    f".env present: {env_exists} | Manifests: {dep_files}"
+                    f".env present: {env_exists} ({env_size} bytes) | Hidden Files: {hidden_cnt} | Manifests: {dep_files}"
                 )
 
                 # 2. Execute security scanners
@@ -146,6 +157,7 @@ class ScanService:
                         existing_finding.fixed_version = f_data.fixed_version
                         existing_finding.vulnerability_id = f_data.vulnerability_id
                         existing_finding.aliases = f_data.aliases
+                        existing_finding.status = "OPEN"  # Ensure active findings remain OPEN
                         existing_finding.updated_at = datetime.now(timezone.utc)
                         active_findings.append(existing_finding)
                     else:
@@ -173,6 +185,22 @@ class ScanService:
                         db.add(new_finding)
                         active_findings.append(new_finding)
 
+                # Flush newly added findings to assign DB primary keys
+                db.flush()
+
+                # Mark stale open findings from previous scans on this repository as RESOLVED
+                active_finding_ids = [f.id for f in active_findings]
+                stale_findings = list(db.scalars(
+                    select(Finding).where(
+                        Finding.repository_id == repository.id,
+                        Finding.status == "OPEN",
+                        Finding.id.not_in(active_finding_ids)
+                    )
+                ).all())
+                for sf in stale_findings:
+                    sf.status = "RESOLVED"
+                    sf.updated_at = datetime.now(timezone.utc)
+
                 db.commit()
 
                 # 4. Compute risk assessments for active findings
@@ -187,18 +215,39 @@ class ScanService:
                 gitleaks_status = gitleaks_res.status if gitleaks_res else "SKIPPED"
                 osv_status = osv_res.status if osv_res else "SKIPPED"
 
+                # Statuses that indicate a successful (non-error) scan completion
+                _COMPLETED_STATUSES = {
+                    "COMPLETED",
+                    "COMPLETED_NO_FINDINGS",
+                    "COMPLETED_WITH_FINDINGS",
+                }
+                gitleaks_completed = gitleaks_status in _COMPLETED_STATUSES
+                osv_completed = osv_status in _COMPLETED_STATUSES
+
+                # Human-readable display label for the UI
+                def _display_status(raw_status: str) -> str:
+                    if raw_status in _COMPLETED_STATUSES:
+                        return "Completed"
+                    return raw_status.capitalize()
+
                 scan.total_findings = len(active_findings)
                 scan.scan_summary = {
                     "files_scanned": total_files,
-                    "dependency_files": dep_files,
-                    "python_files": py_files,
-                    "dot_env_exists": env_exists,
+                    "file_list": file_list,
+                    "env_file_present": env_exists,
+                    "env_file_size": env_size,
+                    "python_files": len(py_files),
+                    "dependency_files": len(dep_files),
+                    "hidden_files": hidden_cnt,
                     "secret_scanner_status": gitleaks_status,
                     "dependency_scanner_status": osv_status,
                     "scanners": {
                         "gitleaks": {
                             "executed": gitleaks_res.executed if gitleaks_res else False,
                             "status": gitleaks_status,
+                            "display_status": _display_status(gitleaks_status),
+                            "mode": "no-git",
+                            "version": "8.18.2" if (gitleaks_res and gitleaks_res.executed) else "N/A",
                             "raw_findings": gitleaks_res.raw_findings_count if gitleaks_res else 0,
                             "normalized_findings": gitleaks_res.normalized_findings_count if gitleaks_res else 0,
                             "error_message": gitleaks_res.error_message if gitleaks_res else None,
@@ -206,6 +255,7 @@ class ScanService:
                         "osv": {
                             "executed": osv_res.executed if osv_res else False,
                             "status": osv_status,
+                            "display_status": _display_status(osv_status),
                             "raw_vulnerabilities": osv_res.raw_findings_count if osv_res else 0,
                             "normalized_findings": osv_res.normalized_findings_count if osv_res else 0,
                             "deduplicated_findings": osv_res.deduplicated_findings_count if osv_res else 0,
@@ -215,8 +265,9 @@ class ScanService:
                     "total_findings": len(active_findings)
                 }
 
-                # Determine overall scan status: FAILED if all scanners failed, otherwise COMPLETED
-                if gitleaks_status == "FAILED" and osv_status == "FAILED":
+                # Determine overall scan status:
+                # FAILED only when ALL scanners failed; COMPLETED otherwise.
+                if not gitleaks_completed and not osv_completed:
                     scan.status = "FAILED"
                     scan.error_message = "All security scanners failed to execute."
                 else:
