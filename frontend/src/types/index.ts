@@ -34,3 +34,4 @@ export * from './repository';
 export * from './scan';
 export * from './risk';
 export * from './dashboard';
+export * from './copilot';

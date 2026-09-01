@@ -2,11 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   FolderGit2, ArrowLeft, ExternalLink, Github, Settings, Trash2,
-  ShieldAlert, Play, Clock, CheckCircle, XCircle, Loader2, AlertCircle, RefreshCw, Flame, MinusCircle
+  ShieldAlert, Play, Clock, CheckCircle, XCircle, Loader2, AlertCircle, RefreshCw, Flame, MinusCircle, Sparkles
 } from 'lucide-react';
 import { repositoryService } from '../services/repository';
 import { scanService, findingService, riskService } from '../services/scan';
 import { Repository, Scan, Finding } from '../types';
+import { CopilotDrawer } from '../components/CopilotDrawer';
 
 export const RepositoryDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -20,6 +21,13 @@ export const RepositoryDetailsPage: React.FC = () => {
   const [scanError, setScanError] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [copilotPrompt, setCopilotPrompt] = useState<string | null>(null);
+
+  const handleOpenCopilot = (prompt?: string) => {
+    setCopilotPrompt(prompt || null);
+    setIsCopilotOpen(true);
+  };
 
   const fetchRepoData = async () => {
     if (!id) return;
@@ -180,6 +188,13 @@ export const RepositoryDetailsPage: React.FC = () => {
           </div>
         </div>
         <div className="flex items-center space-x-3">
+          <button
+            onClick={() => handleOpenCopilot(`How secure is repository ${repository.name}?`)}
+            className="inline-flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white px-3.5 py-2 rounded-lg text-sm font-semibold shadow-md shadow-indigo-500/20 transition-all"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Ask Copilot</span>
+          </button>
           <button
             onClick={handleRecalculateRisk}
             disabled={recalculating}
@@ -485,6 +500,18 @@ export const RepositoryDetailsPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Copilot Drawer */}
+      <CopilotDrawer
+        isOpen={isCopilotOpen}
+        onClose={() => {
+          setIsCopilotOpen(false);
+          setCopilotPrompt(null);
+        }}
+        initialRepositoryId={repository.id}
+        initialRepositoryName={repository.name}
+        initialPrompt={copilotPrompt}
+      />
     </div>
   );
 };

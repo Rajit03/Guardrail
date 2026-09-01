@@ -22,13 +22,11 @@ import {
   HelpCircle,
   X,
   Clock,
-  ExternalLink,
-  ChevronLeft,
-  ChevronRight,
   Layers,
   Activity,
   Sparkles,
 } from 'lucide-react';
+import { CopilotDrawer } from '../components/CopilotDrawer';
 import { dashboardService } from '../services/dashboard';
 import {
   DashboardSummaryResponse,
@@ -46,12 +44,19 @@ export const DashboardPage: React.FC = () => {
   const [summary, setSummary] = useState<DashboardSummaryResponse | null>(null);
   const [repositoriesData, setRepositoriesData] = useState<DashboardRepositoriesResponse | null>(null);
   const [findingsData, setFindingsData] = useState<DashboardFindingsPaginatedResponse | null>(null);
-  const [riskTrendData, setRiskTrendData] = useState<DashboardRiskTrendResponse | null>(null);
+  const [, setRiskTrendData] = useState<DashboardRiskTrendResponse | null>(null);
 
   const [loading, setLoading] = useState<boolean>(true);
   const [findingsLoading, setFindingsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [showExplanationModal, setShowExplanationModal] = useState<boolean>(false);
+  const [isCopilotOpen, setIsCopilotOpen] = useState<boolean>(false);
+  const [copilotInitialPrompt, setCopilotInitialPrompt] = useState<string | null>(null);
+
+  const handleOpenCopilot = (prompt?: string) => {
+    setCopilotInitialPrompt(prompt || null);
+    setIsCopilotOpen(true);
+  };
 
   // Table filters & pagination
   const [filters, setFilters] = useState<DashboardFindingFilters>({
@@ -276,6 +281,13 @@ export const DashboardPage: React.FC = () => {
 
         <div className="flex items-center space-x-3">
           <button
+            onClick={() => handleOpenCopilot()}
+            className="flex items-center space-x-2 px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white rounded-lg text-xs font-semibold shadow-md shadow-indigo-500/20 transition-all"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Ask Copilot</span>
+          </button>
+          <button
             onClick={fetchDashboardData}
             title="Refresh dashboard metrics"
             className="flex items-center space-x-2 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg border border-slate-800 text-xs font-medium transition-colors"
@@ -450,6 +462,59 @@ export const DashboardPage: React.FC = () => {
               <span className="text-[11px] text-slate-400 font-medium block">Dependencies</span>
               <span className="text-lg font-bold text-white font-mono mt-0.5 block">{types.dependency}</span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── COPILOT QUICK ACTION HERO BANNER ────────────────────────── */}
+      <div className="bg-gradient-to-r from-indigo-950/60 via-slate-900/90 to-slate-900 border border-indigo-500/20 rounded-2xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
+        <div className="absolute -top-12 -right-12 w-48 h-48 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="space-y-1 max-w-xl">
+            <div className="flex items-center space-x-2">
+              <div className="w-6 h-6 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-xs font-bold shadow-md shadow-indigo-600/30">
+                ✦
+              </div>
+              <h2 className="text-sm font-bold text-white tracking-wide">Guardrail AI Security Copilot</h2>
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                llama3.2:1b Local
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Ask contextual questions about your security score, prioritized vulnerabilities, and remediation steps. All facts are strictly grounded in your Phase 4 Risk Engine results.
+            </p>
+          </div>
+
+          {/* Quick Question Chips */}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => handleOpenCopilot('What should I fix first?')}
+              className="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-indigo-600/20 border border-slate-700/60 hover:border-indigo-500/40 text-xs text-slate-200 hover:text-indigo-200 transition flex items-center space-x-1.5"
+            >
+              <span>🚀</span>
+              <span>What should I fix first?</span>
+            </button>
+            <button
+              onClick={() => handleOpenCopilot('Do I have exposed secrets?')}
+              className="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-indigo-600/20 border border-slate-700/60 hover:border-indigo-500/40 text-xs text-slate-200 hover:text-indigo-200 transition flex items-center space-x-1.5"
+            >
+              <span>🔑</span>
+              <span>Exposed secrets?</span>
+            </button>
+            <button
+              onClick={() => handleOpenCopilot('Which dependencies are vulnerable?')}
+              className="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-indigo-600/20 border border-slate-700/60 hover:border-indigo-500/40 text-xs text-slate-200 hover:text-indigo-200 transition flex items-center space-x-1.5"
+            >
+              <span>📦</span>
+              <span>Vulnerable packages?</span>
+            </button>
+            <button
+              onClick={() => handleOpenCopilot('What changed since my last scan?')}
+              className="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-indigo-600/20 border border-slate-700/60 hover:border-indigo-500/40 text-xs text-slate-200 hover:text-indigo-200 transition flex items-center space-x-1.5"
+            >
+              <span>📊</span>
+              <span>Scan diff?</span>
+            </button>
           </div>
         </div>
       </div>
@@ -1216,6 +1281,16 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Copilot Drawer */}
+      <CopilotDrawer
+        isOpen={isCopilotOpen}
+        onClose={() => {
+          setIsCopilotOpen(false);
+          setCopilotInitialPrompt(null);
+        }}
+        initialPrompt={copilotInitialPrompt}
+      />
     </div>
   );
 };

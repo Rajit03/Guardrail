@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     # CORS
     BACKEND_CORS_ORIGINS: Union[List[str], str] = ["http://localhost:3000", "http://localhost:5173"]
 
+    # Ollama AI Copilot Configuration
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_MODEL: str = "llama3.2:1b"
+    OLLAMA_TIMEOUT_SECONDS: int = 60
+    MAX_CONTEXT_FINDINGS: int = 10
+    MAX_HISTORY_MESSAGES: int = 10
+    COPILOT_RATE_LIMIT_PER_HOUR: int = 30
+
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v: Union[str, List[str]]) -> List[str]:

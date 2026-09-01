@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, FolderGit2, FileText, Flame, CheckCircle, RefreshCw, Package } from 'lucide-react';
+import { ArrowLeft, FolderGit2, FileText, Flame, CheckCircle, RefreshCw, Package, Sparkles } from 'lucide-react';
 import { findingService, riskService } from '../services/scan';
 import { repositoryService } from '../services/repository';
 import { Finding, Repository, RiskAssessment } from '../types';
+import { CopilotDrawer } from '../components/CopilotDrawer';
 
 export const FindingDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -13,6 +14,13 @@ export const FindingDetailsPage: React.FC = () => {
   const [riskAssessment, setRiskAssessment] = useState<RiskAssessment | null>(null);
   const [loading, setLoading] = useState(true);
   const [recalculating, setRecalculating] = useState(false);
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [copilotPrompt, setCopilotPrompt] = useState<string | null>(null);
+
+  const handleOpenCopilot = (prompt?: string) => {
+    setCopilotPrompt(prompt || null);
+    setIsCopilotOpen(true);
+  };
 
   const fetchFindingDetails = async () => {
     if (!id) return;
@@ -128,14 +136,62 @@ export const FindingDetailsPage: React.FC = () => {
           </div>
         </div>
 
-        <button
-          onClick={handleRecalculateRisk}
-          disabled={recalculating}
-          className="inline-flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white px-3.5 py-2 rounded-lg text-sm font-medium border border-slate-800 transition-colors disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${recalculating ? 'animate-spin' : ''}`} />
-          <span>Recalculate Risk</span>
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => handleOpenCopilot('Explain this finding')}
+            className="inline-flex items-center space-x-2 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white px-3.5 py-2 rounded-lg text-sm font-semibold shadow-md shadow-indigo-500/20 transition-all"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Ask Copilot</span>
+          </button>
+          <button
+            onClick={handleRecalculateRisk}
+            disabled={recalculating}
+            className="inline-flex items-center space-x-2 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white px-3.5 py-2 rounded-lg text-sm font-medium border border-slate-800 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${recalculating ? 'animate-spin' : ''}`} />
+            <span>Recalculate Risk</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Copilot Finding Quick Advisory Banner */}
+      <div className="bg-gradient-to-r from-indigo-950/40 via-slate-900 to-slate-900 border border-indigo-500/20 rounded-xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-md">
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400 font-bold text-sm">
+            ✦
+          </div>
+          <div>
+            <div className="text-xs font-bold text-white flex items-center space-x-2">
+              <span>Guardrail Copilot Advisory</span>
+              <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                Ollama • llama3.2:1b
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 mt-0.5">Need help fixing or understanding this risk?</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => handleOpenCopilot('Explain this finding in plain language')}
+            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-indigo-600/20 border border-slate-700/60 hover:border-indigo-500/40 text-xs text-slate-200 hover:text-indigo-200 transition"
+          >
+            Explain finding
+          </button>
+          <button
+            onClick={() => handleOpenCopilot('How do I remediate and fix this finding?')}
+            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-indigo-600/20 border border-slate-700/60 hover:border-indigo-500/40 text-xs text-slate-200 hover:text-indigo-200 transition"
+          >
+            How to fix?
+          </button>
+          <button
+            onClick={() => handleOpenCopilot('Why is this priority and risk score assigned to this finding?')}
+            className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-indigo-600/20 border border-slate-700/60 hover:border-indigo-500/40 text-xs text-slate-200 hover:text-indigo-200 transition"
+          >
+            Why this priority?
+          </button>
+        </div>
       </div>
 
       {/* Risk Engine Banner */}
@@ -360,6 +416,20 @@ export const FindingDetailsPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Copilot Drawer */}
+      <CopilotDrawer
+        isOpen={isCopilotOpen}
+        onClose={() => {
+          setIsCopilotOpen(false);
+          setCopilotPrompt(null);
+        }}
+        initialFindingId={finding.id}
+        initialFindingTitle={finding.title}
+        initialRepositoryId={repository?.id}
+        initialRepositoryName={repository?.name}
+        initialPrompt={copilotPrompt}
+      />
     </div>
   );
 };

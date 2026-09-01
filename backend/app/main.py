@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.routes import health, auth, repositories, scans, findings, risk, dashboard
+from app.copilot.router import router as copilot_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -30,6 +31,7 @@ app.include_router(repositories.router, prefix=settings.API_V1_STR)
 app.include_router(scans.router, prefix=settings.API_V1_STR)
 app.include_router(findings.router, prefix=settings.API_V1_STR)
 app.include_router(risk.router, prefix=settings.API_V1_STR)
+app.include_router(copilot_router, prefix=settings.API_V1_STR)
 
 
 @app.get("/", include_in_schema=False)
