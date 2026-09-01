@@ -1,3 +1,5 @@
+FROM zricethezav/gitleaks:v8.18.2 AS gitleaks-bin
+
 FROM python:3.12-slim
 
 WORKDIR /app
@@ -7,17 +9,16 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
-# Install system dependencies & Gitleaks binary
-ENV GITLEAKS_VERSION=8.18.2
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     gcc \
     libpq-dev \
-    tar \
     git \
-    && curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz -C /usr/local/bin gitleaks \
-    && chmod +x /usr/local/bin/gitleaks \
     && rm -rf /var/lib/apt/lists/*
+
+# Copy gitleaks binary from the official image (avoids GitHub TLS issues during build)
+COPY --from=gitleaks-bin /usr/bin/gitleaks /usr/local/bin/gitleaks
 
 # Install python dependencies
 COPY requirements.txt .

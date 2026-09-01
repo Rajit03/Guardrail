@@ -1,3 +1,4 @@
+import math
 from typing import Dict
 
 RISK_THRESHOLDS: Dict[str, int] = {
@@ -67,16 +68,50 @@ def determine_risk_level(risk_score: int) -> str:
         return "INFO"
 
 
+# Severity weights used by the aggregate security score formula.
+# Higher weight = finding contributes more to overall risk.
+_SCORE_SEVERITY_WEIGHTS: Dict[str, float] = {
+    "CRITICAL": 4.0,
+    "HIGH": 2.0,
+    "MEDIUM": 1.0,
+    "LOW": 0.3,
+    "INFO": 0.0,
+}
+
+# Logarithmic scale factor. Larger = gentler slope (more lenient at high
+# finding counts). Chosen so that single-finding scores match the previous
+# linear formula numerically: 1 HIGH → 87, 1 CRITICAL → 70.
+_SCORE_SCALE: float = 10.0
+
+
 def calculate_security_score(finding_assessments: list) -> int:
     """
-    Computes an overall 0–100 Security Score from active open findings' risk assessments.
-    100 = Clean / No active risks detected.
-    Penalties are proportional to finding severity and risk scores derived from the Risk Engine.
+    Computes an overall 0–100 Security Score from active open findings'
+    risk assessments. 100 = Clean / No active risks detected.
+
+    Uses logarithmic (diminishing-returns) aggregation:
+
+        weighted_sum = Σ( severity_weight × risk_score / 100 )
+        penalty      = 100 × ( 1 − e^(−weighted_sum / SCALE) )
+        score        = round( 100 − penalty )   [clamped 0–100]
+
+    Severity weights: CRITICAL=4.0, HIGH=2.0, MEDIUM=1.0, LOW=0.3, INFO=0.0
+    Scale (SCALE=10): preserves single-finding scores from the previous
+    formula while preventing score collapse at higher finding counts.
+
+    Properties:
+        • 0 findings          → 100 (perfect)
+        • 1 HIGH  (risk=68)  →  87 (Good)
+        • 1 CRIT  (risk=90)  →  70 (Needs Attention)
+        • 8 HIGH  findings   →  34 (High Risk, not 0)
+        • 25 HIGH findings   →   3 (Critical Risk)
+        • Score approaches 0 only at extreme finding counts (≥50 HIGH)
+        • Score never goes below 0, never above 100
     """
     if not finding_assessments:
         return 100
 
-    total_penalty = 0.0
+    weighted_sum = 0.0
     for item in finding_assessments:
         # Handle dict, RiskAssessment object, or (severity, risk_score) tuple
         if isinstance(item, tuple):
@@ -93,20 +128,11 @@ def calculate_security_score(finding_assessments: list) -> int:
         sev = (sev or "MEDIUM").upper()
         r_score = r_score if r_score is not None else 45
 
-        if sev == "CRITICAL":
-            penalty = 18.0 + (r_score * 0.12)
-        elif sev == "HIGH":
-            penalty = 8.0 + (r_score * 0.08)
-        elif sev == "MEDIUM":
-            penalty = 3.0 + (r_score * 0.04)
-        elif sev == "LOW":
-            penalty = 0.5 + (r_score * 0.02)
-        else:
-            penalty = 0.0
+        weight = _SCORE_SEVERITY_WEIGHTS.get(sev, 0.0)
+        weighted_sum += weight * (r_score / 100.0)
 
-        total_penalty += penalty
-
-    score = max(0.0, 100.0 - total_penalty)
+    penalty = 100.0 * (1.0 - math.exp(-weighted_sum / _SCORE_SCALE))
+    score = 100.0 - penalty
     return max(0, min(100, round(score)))
 
 
